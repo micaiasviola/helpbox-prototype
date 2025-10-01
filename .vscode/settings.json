@@ -1,0 +1,56 @@
+{
+    "sqltools.connections": [
+        {
+            "dbDriver": "mssqlnodev8",
+            "connectionMethod": "Integrated",
+            "connectionTimeout": 15,
+            "sidePanelOptions": {
+                "inaccessibleDatabase": true,
+                "inaccessibleSchema": true
+            },
+            "previewLimit": 50,
+            "odbcDriver": "SQL Server",
+            "port": 1433,
+            "msnodesqlv8Options": {},
+            "driver": "SQL Server/Azure Community Ver",
+            "name": "Mike",
+            "server": "localhost",
+            "database": "Helpbox"
+        },
+        {
+            "dbDriver": "mssqlnodev8",
+            "connectionMethod": "Integrated",
+            "connectionTimeout": 15,
+            "sidePanelOptions": {
+                "inaccessibleDatabase": true,
+                "inaccessibleSchema": true
+            },
+            "previewLimit": 50,
+            "odbcDriver": "SQL Server",
+            "port": 1433,
+            "msnodesqlv8Options": {},
+            "driver": "SQL Server/Azure Community Ver",
+            "name": "Micaias",
+            "server": "localhost",
+            "database": "Helpbox"
+        },
+        {
+            "dbDriver": "mssqlnodev8",
+            "connectionMethod": "Integrated",
+            "connectionTimeout": 15,
+            "sidePanelOptions": {
+                "inaccessibleDatabase": true,
+                "inaccessibleSchema": true
+            },
+            "previewLimit": 50,
+            "odbcDriver": "SQL Server",
+            "port": 1433,
+            "msnodesqlv8Options": {},
+            "driver": "SQL Server/Azure Community Ver",
+            "name": "MicaiasLeonardo",
+            "server": "localhost",
+            "database": "Helpbox"
+        }
+    ],
+    "postman.settings.dotenv-detection-notification-visibility": false
+}

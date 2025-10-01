@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>HELPBOX — Sistema de Chamados</title>
+  <link rel="stylesheet" href="/FrontEnd/css/estilo.css" />
+  <link rel="icon" href="assets/hb-icon.svg" />
+  <meta name="theme-color" content="#007BFF" />
+
+  <script type="module" src="/FrontEnd/js/main.js"></script>
+
+  <!-- Chart.js for dashboard demo -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+
+<body>
+  <div class="app">
+    <aside class="sidebar" id="sidebar">
+      <div class="brand">
+        <img src="assets/hb-icon.svg" alt="HB" />
+        <div class="brand-text">
+          <span class="brand-title">HELPBOX</span>
+          <span class="brand-sub">Chamados Internos</span>
+        </div>
+        <button class="sidebar-toggle" id="sidebarToggle" aria-label="Recolher menu">≡</button>
+      </div>
+      <nav class="menu">
+        <a href="#/dashboard" data-route="dashboard" class="menu-item active">
+          <span class="icon">📊</span><span>Dashboard</span>
+        </a>
+        <a href="#/abrir" data-route="abrir" class="menu-item">
+          <span class="icon">➕</span><span>Abrir Chamado</span>
+        </a>
+        <a href="#/meus" data-route="meus" class="menu-item">
+          <span class="icon">📁</span><span>Meus Chamados</span>
+        </a>
+        <a href="#/usuarios" data-route="usuarios" class="menu-item">
+          <span class="icon">👥</span><span>Usuários</span>
+        </a>
+        <a href="#/config" data-route="config" class="menu-item">
+          <span class="icon">⚙️</span><span>Configurações</span>
+        </a>
+      </nav>
+      <footer class="sidebar-footer">
+        <small>© <span id="year"></span> HELPBOX</small>
+      </footer>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div class="search">
+          <input id="globalSearch" type="search" placeholder="Buscar chamados, usuários..." />
+        </div>
+        <div class="top-actions">
+          <button id="notifBtn" class="icon-btn" title="Notificações">🔔</button>
+          <div class="user">
+            <img src="assets/avatar.png" alt="Usuário" />
+            <div class="user-meta">
+              <strong>João Silva</strong>
+              <small>Analista</small>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <section id="view" class="view">
+        <!-- Conteúdo é injetado via JS -->
+      </section>
+    </main>
+  </div>
+
+  <!-- <script src="app.js"></script> -->
+</body>
+
+</html>

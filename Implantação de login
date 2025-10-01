@@ -1,0 +1,214 @@
+1. Estrutura geral necessária
+
+Para suportar login e níveis de acesso, vamos precisar de:
+
+Banco de Dados:
+
+Criar uma tabela Usuario (se já existe, ótimo) com campos como:
+
+id_User (PK)
+
+nome_User
+
+email_User
+
+senha_User (armazenada com hash seguro)
+
+cargo_User → Cliente, Tecnico ou Administrador
+
+nivelAcesso_User → 1, 2 ou 3 (se quiser mapear numericamente)
+
+Back-end (Node + Express):
+
+Criar rotas para:
+
+Login → /auth/login
+
+Logout → /auth/logout
+
+Rotas protegidas → middleware para verificar se o usuário está logado.
+
+Controle de acesso → middleware para permitir/recusar acesso baseado no cargo.
+
+Front-end (SPA):
+
+Página de login com formulário de email e senha.
+
+Guardar o token de sessão (JWT ou cookie de sessão).
+
+Alterar a UI dinamicamente conforme o cargo do usuário.
+
+Autenticação:
+
+JWT → Recomendado para SPA, pois permite guardar o token no localStorage.
+
+Bcrypt → Para armazenar senhas de forma segura.
+
+2. Fluxo de autenticação
+
+O fluxo básico seria:
+
+Usuário acessa a página de login.
+
+Envia email e senha → POST /auth/login.
+
+No back-end:
+
+Verifica se o email existe.
+
+Compara senha informada com o hash usando bcrypt.
+
+Se válido, gera um JWT com as informações:
+
+{
+  "id": 5,
+  "nome": "João",
+  "cargo": "Tecnico",
+  "nivel": 2
+}
+
+
+Retorna esse token para o front-end.
+
+No front-end:
+
+Guarda o token no localStorage ou sessionStorage.
+
+Decodifica o JWT para saber qual é o cargo.
+
+Exibe ou oculta recursos conforme o nível.
+
+Para cada requisição protegida, o front envia o token no Authorization header.
+
+O back-end valida o token antes de retornar os dados.
+
+3. Controle de acesso (autorização)
+
+Criamos um middleware para proteger as rotas:
+
+// middlewares/auth.js
+const jwt = require('jsonwebtoken');
+
+function auth(requiredRoles = []) {
+  return (req, res, next) => {
+    const authHeader = req.headers['authorization'];
+    if (!authHeader) return res.status(401).json({ error: 'Não autorizado' });
+
+    const token = authHeader.split(' ')[1];
+    jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
+      if (err) return res.status(403).json({ error: 'Token inválido' });
+
+      // Verifica cargos permitidos
+      if (requiredRoles.length && !requiredRoles.includes(user.cargo)) {
+        return res.status(403).json({ error: 'Acesso negado' });
+      }
+
+      req.user = user;
+      next();
+    });
+  };
+}
+
+module.exports = auth;
+
+
+Exemplo de uso nas rotas:
+
+const auth = require('./middlewares/auth');
+
+// Cliente pode abrir chamados
+app.post('/chamados', auth(['Cliente', 'Administrador']), criarChamado);
+
+// Técnico pode ver chamados abertos
+app.get('/chamados', auth(['Tecnico', 'Administrador']), listarChamados);
+
+// Apenas administradores podem criar usuários
+app.post('/usuarios', auth(['Administrador']), criarUsuario);
+
+4. Exemplo de JWT no login
+const bcrypt = require('bcrypt');
+const jwt = require('jsonwebtoken');
+const { getPool } = require('../db');
+
+router.post('/login', async (req, res) => {
+  try {
+    const { email, senha } = req.body;
+
+    const pool = await getPool();
+    const result = await pool
+      .request()
+      .input('email', sql.VarChar, email)
+      .query('SELECT * FROM Usuario WHERE email_User = @email');
+
+    const user = result.recordset[0];
+    if (!user) return res.status(401).json({ error: 'Usuário não encontrado' });
+
+    const valid = await bcrypt.compare(senha, user.senha_User);
+    if (!valid) return res.status(401).json({ error: 'Senha incorreta' });
+
+    const token = jwt.sign(
+      {
+        id: user.id_User,
+        nome: user.nome_User,
+        cargo: user.cargo_User,
+        nivel: user.nivelAcesso_User
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: '8h' }
+    );
+
+    res.json({ token });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+5. Alteração no front-end
+
+No app.js, adicionamos:
+
+Uma tela de login simples.
+
+Um controle global para verificar se o usuário está logado.
+
+Ocultar menus conforme o cargo:
+
+const token = localStorage.getItem('token');
+if (!token && location.hash !== '#/login') {
+  location.hash = '#/login';
+}
+
+// Decodifica o token para saber quem é o usuário
+function getUserFromToken() {
+  try {
+    return JSON.parse(atob(token.split('.')[1]));
+  } catch {
+    return null;
+  }
+}
+
+const user = getUserFromToken();
+if (user.cargo === 'Cliente') {
+  document.getElementById('menuUsuarios').style.display = 'none';
+}
+
+6. Relatórios e estatísticas
+
+Como administrador, você poderá criar rotas específicas, por exemplo:
+
+/relatorios/chamados-por-tecnico
+
+/relatorios/chamados-por-status
+
+/relatorios/chamados-por-categoria
+
+Essas rotas também serão protegidas e só acessíveis por administradores.
+
+7. Resumindo
+Recurso	Cliente	Técnico	Administrador
+Abrir chamados	✅	❌	✅
+Ver chamados próprios	✅	❌	✅
+Ver todos chamados	❌	✅	✅
+Resolver chamados	❌	✅	✅
+Criar usuários	❌	❌	✅
+Criar relatórios	❌	❌	✅
