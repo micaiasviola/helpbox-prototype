@@ -6,37 +6,7 @@ import { NIVEL_ACESSO_MAP } from '../utils/constants.js';
  */
 export function renderUsuarios() {
     const view = document.getElementById('view');
-    view.innerHTML = `
-    <div class="toolbar">
-      <input id="novoNome" class="input" placeholder="Nome do usuário" style="max-width:180px"/>
-      <input id="novoSobrenome" class="input" placeholder="Sobrenome do usuário" style="max-width:180px"/>
-      <input id="novoEmail" class="input" placeholder="Email do usuário" style="max-width:240px"/>
-      <input id="novoSenha" class="input" placeholder="Senha" type="password" style="max-width:150px"/>
-      <input id="novoDepartamento" class="input" placeholder="Departamento" style="max-width:150px"/>
-      <select id="novoCargo" class="select" style="max-width:150px">
-        <option>Cliente</option>
-        <option>Tecnico</option>
-        <option>Administrador</option>
-      </select>
-      <select id="novoPermissao" class="select" style="max-width:100px">
-        <option value="1">1</option>
-        <option value="2">2</option>
-        <option value="3">3</option>
-      </select>
-      <button id="addUser" class="btn">Adicionar</button>
-    </div>
-    <div id="alert" style="margin-top:10px;"></div>
-    <table class="table">
-      <thead>
-        <tr>
-          <th>ID</th><th>Nome</th><th>Sobrenome</th><th>Email</th><th>Senha</th><th>Departamento</th><th>Cargo</th><th>Nível de Acesso</th><th>Ações</th>
-        </tr>
-      </thead>
-      <tbody id="uBody"></tbody>
-    </table>
-  `;
-
-
+  
     view.innerHTML = `
     <div class="toolbar">
       <input id="novoNome" class="input" placeholder="Nome do usuário" style="max-width:180px"/>
