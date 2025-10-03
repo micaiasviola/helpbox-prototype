@@ -6,7 +6,7 @@ import { NIVEL_ACESSO_MAP } from '../utils/constants.js';
  */
 export function renderUsuarios() {
     const view = document.getElementById('view');
-  
+ 
     view.innerHTML = `
     <div class="toolbar">
       <input id="novoNome" class="input" placeholder="Nome do usuário" style="max-width:180px"/>
