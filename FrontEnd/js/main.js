@@ -1,4 +1,3 @@
-// CORRIJA ESTAS IMPORTACOES:
 import { YEAR } from './utils/constants.js';
 import { applyAccent } from './utils/helpers.js';
 import { renderDashboard } from './views/dashboard.js';
