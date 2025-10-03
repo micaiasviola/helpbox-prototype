@@ -300,3 +300,15 @@ body {
     gap: 10px;
     margin-bottom: 20px;
 }
+
+.demanda{
+    display: block;
+}
+
+.usuario {
+    display: block;
+}
+
+.tempo{
+    display: block;
+}

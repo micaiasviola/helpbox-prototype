@@ -12,9 +12,9 @@ export async function renderMeusChamados() {
     <div class="toolbar">
       <select id="filtroStatus" class="select" style="max-width:220px">
         <option value="">Todos os status</option>
-        <option>aberto</option>
-        <option>em andamento</option>
-        <option>fechado</option>
+        <option>Aberto</option>
+        <option>Em andamento</option>
+        <option>Fechado</option>
       </select>
       <input id="busca" class="input" placeholder="Buscar por descrição..." style="max-width:320px"/>
       <button id="refreshChamados" class="btn">🔄 Atualizar</button>
@@ -23,7 +23,8 @@ export async function renderMeusChamados() {
     <table class="table">
       <thead>
         <tr>
-          <th>ID</th>
+          <th>ID Chamado</th>
+          <th>ID Cliente </th>
           <th>Descrição</th>
           <th>Status</th>
           <th>Prioridade</th>
@@ -69,7 +70,7 @@ function renderChamadosTable(chamados) {
             <td>${c.categoria_Cham || 'Não definida'}</td>
             <td>${formatDate(c.dataAbertura_Cham)}</td>
             <td>
-                <button class="btn" data-action="progress" data-id="${c.id_Cham}">Mover ↻</button>
+                <button class="btn" data-action="progress" data-id="${c.id_Cham}">Resolver</button>
                 <button class="btn secondary" data-action="close" data-id="${c.id_Cham}">Finalizar ✓</button>
             </td>`;
         tbody.appendChild(tr);
