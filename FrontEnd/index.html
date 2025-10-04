@@ -5,8 +5,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <link rel="stylesheet" href="/FrontEnd/css/estilo.css" />
-  <title>HELPBOX — Sistema de Chamado Original</title>
-  <link rel="icon" href="assets/hb-icon.svg" />
+  <title> HelpBox </title>
+  <link rel="icon" type="image/png" href="Logo3.png" />
   <meta name="theme-color" content="#007BFF" />
 
   <script type="module" src="/FrontEnd/js/main.js"></script>
@@ -19,7 +19,7 @@
   <div class="app">
     <aside class="sidebar" id="sidebar">
       <div class="brand">
-        <img src="assets/hb-icon.svg" alt="HB" />
+        <img src="Logo3.png" alt="HB" />
         <div class="brand-text">
           <span class="brand-title">HELPBOX</span>
           <span class="brand-sub">Chamados Internos</span>
@@ -27,20 +27,26 @@
         <button class="sidebar-toggle" id="sidebarToggle" aria-label="Recolher menu">≡</button>
       </div>
       <nav class="menu">
+        <a href="#/pagina-inicial" date-route="pagina-inicial" class="menu-item">
+          <span class="icon">🏠</span><span>Página Inicial</span>
+          </a>
          <a href="#/abrir" data-route="abrir" class="menu-item">
           <span class="icon">➕</span><span>Abrir Chamado</span>
         </a>
+        <a href="#/chamados" data-route="chamados" class="menu-item">
+          <span class="icon">📋</span><span> Meus Chamados </span>
+        </a>
         <a href="#/meus" data-route="meus" class="menu-item">
-          <span class="icon">📁</span><span>Gerenciar Chamados</span>
+          <span class="icon">💡</span><span>Solucionar Chamados</span>
         </a>
         <a href="#/usuarios" data-route="usuarios" class="menu-item">
           <span class="icon">👥</span><span> Gerenciar Usuários</span>
         </a>
-        <a href="#/dashboard" data-route="dashboard" class="menu-item active">
+        <a href="#/dashboard" data-route="dashboard" class="menu-item">
           <span class="icon">📊</span><span>Relatórios</span>
         </a>
         <a href="#/config" data-route="config" class="menu-item">
-          <span class="icon">⚙️</span><span> Manual do Usuário </span>
+          <span class="icon">📖</span><span> Manual do Usuário </span>
         </a>
       </nav>
       <footer class="sidebar-footer">
@@ -58,7 +64,7 @@
           <div class="user">
             <img src="assets/avatar.png" alt="Usuário" />
             <div class="user-meta">
-              <strong>João Silva</strong>
+              <strong>Olá, João Silva</strong>
               <small>Analista de Sistemas </small>
             </div>
           </div>

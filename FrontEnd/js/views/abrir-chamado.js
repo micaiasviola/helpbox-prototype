@@ -13,7 +13,7 @@ export function renderAbrirChamado() {
       </div>
       <div class="grid" style="grid-template-columns: repeat(3, 1fr); gap:12px;">
         <div>
-          <label class="label">Categoria</label>
+          <label class="label">Categoria <span class="info" title="Software: chamados relacionados a sistemas, aplicativos ou programas. Hardware: chamados relacionados a peças físicas, como computador, impressora, etc.">ℹ️</span> </label>
           <select class="select" name="categoria">
             <option>Software</option><option>Hardware</option>
           </select>

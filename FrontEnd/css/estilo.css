@@ -83,9 +83,14 @@ body {
     transition: background 0.3s;
 }
 
-.menu-item:hover,
-.menu-item.active {
+.menu-item:hover{
     background: #34495e;
+}
+
+/* quando o item for o "selecionado" */
+.menu-item.active {
+  background: #007BFF;   /* cor diferente */
+  color: #fff;           /* muda a cor da letra */
 }
 
 .menu-item .icon {
@@ -311,4 +316,6 @@ body {
 
 .tempo{
     display: block;
+    
 }
+
