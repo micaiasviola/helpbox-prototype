@@ -1,12 +1,12 @@
 import { apiGetUsuarios, apiCreateUsuario, apiUpdateUsuario, apiDeleteUsuario } from '../api/usuarios.js';
-import { NIVEL_ACESSO_MAP } from '../utils/constants.js';
+import { NIVEL_ACESSO_MAP, API_BASE } from '../utils/constants.js';
 
 /**
  * Exibe a interface de gerenciamento de usuários
  */
 export function renderUsuarios() {
     const view = document.getElementById('view');
- 
+
     view.innerHTML = `
     <div class="toolbar">
       <input id="novoNome" class="input" placeholder="Nome do usuário" style="max-width:180px"/>
@@ -58,17 +58,10 @@ export function renderUsuarios() {
      */
     async function fetchUsuarios() {
         try {
-            // PROBLEMA: O fetch estava sem a flag 'credentials'
-            const res = await fetch('http://localhost:3000/usuarios', {
-                // AQUI ESTÁ A CORREÇÃO: Envia o cookie de sessão
-                credentials: 'include' 
-            }); 
-            
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            usuarios = await res.json();
+            usuarios = await apiGetUsuarios();
             draw();
         } catch (err) {
-            showAlert('Erro ao carregar usuários: ' + err.message, 'error');
+            showAlert('Erro ao carregar usuários: ', 'error');
         }
     }
 
@@ -109,41 +102,45 @@ export function renderUsuarios() {
         if (!nome || !sobrenome || !email || !senha || !departamento) return showAlert('Preencha todos os campos', 'error');
 
         try {
-            const dados = { 
-            nome_User: nome, 
-            sobrenome_User: sobrenome, 
-            email_User: email, 
-            senha_User: senha, 
-            departamento_User: departamento, 
-            cargo_User: cargo, 
-            nivelAcesso_User: permissao 
-        };
-        
+            const dados = {
+                nome_User: nome,
+                sobrenome_User: sobrenome,
+                email_User: email,
+                senha_User: senha,
+                departamento_User: departamento,
+                cargo_User: cargo,
+                nivelAcesso_User: permissao
+            };
+
+            let resultado;
             if (editId !== null) {
                 // Modo edição
-                const res = await fetch(`http://localhost:3000/usuarios/${editId}`, {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    credentials: 'include', // <--- CORREÇÃO AQUI
-                    body: JSON.stringify(dados)
-                });
-                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                resultado = await apiUpdateUsuario(editId, dados);
+
                 const user = usuarios.find(u => u.id_User === editId);
-                Object.assign(user, { nome_User: nome, sobrenome_User: sobrenome, email_User: email, departamento_User: departamento, cargo_User: cargo, nivelAcesso_User: permissao });
+                Object.assign(user, {
+                    nome_User: nome,
+                    sobrenome_User: sobrenome,
+                    email_User: email,
+                    departamento_User: departamento,
+                    cargo_User: cargo,
+                    nivelAcesso_User: permissao
+                });
                 editId = null;
                 document.getElementById('addUser').textContent = 'Adicionar';
                 showAlert('Usuário atualizado com sucesso!');
             } else {
                 // Modo criação
-                const res = await fetch('http://localhost:3000/usuarios', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    credentials: 'include', // <--- CORREÇÃO AQUI
-                    body: JSON.stringify(dados)
+                resultado = await apiCreateUsuario(dados);
+                usuarios.push({
+                    id_User: resultado.id, // Assumindo que a API retorna { id: X } no POST
+                    nome_User: nome,
+                    sobrenome_User: sobrenome,
+                    email_User: email,
+                    departamento_User: departamento,
+                    cargo_User: cargo,
+                    nivelAcesso_User: permissao
                 });
-                if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                const data = await res.json();
-                usuarios.push({ id_User: data.id, nome_User: nome, sobrenome_User: sobrenome, email_User: email, departamento_User: departamento, cargo_User: cargo, nivelAcesso_User: permissao });
                 showAlert('Usuário adicionado com sucesso!');
             }
             document.getElementById('novoNome').value = '';
@@ -153,7 +150,7 @@ export function renderUsuarios() {
             document.getElementById('novoDepartamento').value = '';
             draw();
         } catch (err) {
-            showAlert('Erro ao salvar usuário: ' + err.message, 'error');
+            showAlert(`Erro ao salvar usuário: ${err.message}`, 'error');
         }
     });
 
@@ -166,15 +163,12 @@ export function renderUsuarios() {
 
         if (action === 'remover') {
             try {
-                    const res = await fetch(`http://localhost:3000/usuarios/${id}`, { 
-                    method: 'DELETE',
-                    credentials: 'include' // <--- CORREÇÃO AQUI
-                });                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                await apiDeleteUsuario(id);
                 usuarios = usuarios.filter(u => u.id_User !== id);
                 draw();
                 showAlert('Usuário removido com sucesso!');
             } catch (err) {
-                showAlert('Erro ao remover usuário: ' + err.message, 'error');
+                showAlert(`Erro ao remover usuário: ${err.message}`, 'error');
             }
         } else if (action === 'editar') {
             document.getElementById('novoNome').value = user.nome_User;
