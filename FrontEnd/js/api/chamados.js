@@ -5,7 +5,9 @@ import { API_BASE } from '../utils/constants.js';
  */
 export async function apiGetChamados() {
     try {
-        const response = await fetch(`${API_BASE}/chamados`);
+        const response = await fetch(`${API_BASE}/chamados`, {
+            credentials: 'include'
+        });
         if (response.ok) {
             return await response.json();
         }
@@ -26,6 +28,7 @@ export async function apiUpdateChamado(id, dados) {
             headers: {
                 'Content-Type': 'application/json'
             },
+            credentials: 'include',
             body: JSON.stringify(dados)
         });
 
@@ -49,6 +52,7 @@ export async function apiCreateChamado(dados) {
             headers: {
                 'Content-Type': 'application/json'
             },
+            credentials: 'include',
             body: JSON.stringify(dados)
         });
 

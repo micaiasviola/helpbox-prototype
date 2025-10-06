@@ -1,10 +1,13 @@
 // routes/usuarios.js
 const express = require('express');
+const bcrypt = require('bcrypt');
 const router = express.Router();
 const { getPool, sql } = require('../db.js');
 
+const verificarADM = require('../midlewares/verificarADM.js');
+
 // GET todos os usuários
-router.get('/', async (req, res) => {
+router.get('/', verificarADM, async (req, res) => {
     try {
         const pool = await getPool();
         const result = await pool.request().query(`
@@ -33,13 +36,18 @@ router.post('/', async (req, res) => {
         if (!nome_User || !email_User || !senha_User || !departamento_User) {
             return res.status(400).json({ error: "nome, email, senha e departamento são obrigatórios" });
         }
+        
+        // Criptografa a senha antes de salvar no banco
+        const saltRounds = 10;
+        const senhaHash = await bcrypt.hash(senha_User, saltRounds);
 
         const pool = await getPool();
         const result = await pool.request()
             .input('nome', sql.VarChar(255), nome_User)
             .input('sobrenome', sql.VarChar(255), sobrenome_User)
             .input('email', sql.VarChar(255), email_User)
-            .input('senha', sql.VarChar(255), senha_User)
+            // SALVA O HASH DA SENHA (MODIFICADO)
+            .input('senha', sql.VarChar(255), senhaHash) 
             .input('cargo', sql.VarChar(255), cargo_User)
             .input('departamento', sql.VarChar(255), departamento_User)
             .input('nivelAcesso', sql.Int, nivelAcesso_User)
@@ -50,7 +58,7 @@ router.post('/', async (req, res) => {
         (nome_User, sobrenome_User, email_User, senha_User, cargo_User, departamento_User, nivelAcesso_User)
         OUTPUT INSERTED.id_User INTO @InsertedIds
         VALUES (@nome, @sobrenome, @email, @senha, @cargo, @departamento, @nivelAcesso);
-
+        
         SELECT id_User FROM @InsertedIds;
       `);
 

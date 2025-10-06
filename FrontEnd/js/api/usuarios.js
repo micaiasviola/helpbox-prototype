@@ -5,7 +5,10 @@ import { API_BASE } from '../utils/constants.js';
  */
 export async function apiGetUsuarios() {
     try {
-        const response = await fetch(`${API_BASE}/usuarios`);
+        const response = await fetch(`${API_BASE}/usuarios`, {
+            // ESSENCIAL: Garante que o cookie de sessão seja enviado com a requisição
+            credentials: 'include' 
+        }); 
         if (response.ok) {
             return await response.json();
         }
@@ -26,6 +29,7 @@ export async function apiCreateUsuario(dados) {
             headers: {
                 'Content-Type': 'application/json'
             },
+            credentials: 'include',
             body: JSON.stringify(dados)
         });
 
@@ -49,6 +53,7 @@ export async function apiUpdateUsuario(id, dados) {
             headers: {
                 'Content-Type': 'application/json'
             },
+            credentials: 'include',
             body: JSON.stringify(dados)
         });
 
@@ -68,7 +73,8 @@ export async function apiUpdateUsuario(id, dados) {
 export async function apiDeleteUsuario(id) {
     try {
         const response = await fetch(`${API_BASE}/usuarios/${id}`, {
-            method: 'DELETE'
+            method: 'DELETE',
+            credentials: 'include',
         });
 
         if (response.ok) {

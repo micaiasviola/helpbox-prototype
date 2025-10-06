@@ -58,7 +58,12 @@ export function renderUsuarios() {
      */
     async function fetchUsuarios() {
         try {
-            const res = await fetch('http://localhost:3000/usuarios');
+            // PROBLEMA: O fetch estava sem a flag 'credentials'
+            const res = await fetch('http://localhost:3000/usuarios', {
+                // AQUI ESTÁ A CORREÇÃO: Envia o cookie de sessão
+                credentials: 'include' 
+            }); 
+            
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             usuarios = await res.json();
             draw();
@@ -109,7 +114,8 @@ export function renderUsuarios() {
                 const res = await fetch(`http://localhost:3000/usuarios/${editId}`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ nome_User: nome, sobrenome_User: sobrenome, email_User: email, senha_User: senha, departamento_User: departamento, cargo_User: cargo, nivelAcesso_User: permissao })
+                    credentials: 'include', // <--- CORREÇÃO AQUI
+                    body: JSON.stringify({ /* dados */ })
                 });
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
                 const user = usuarios.find(u => u.id_User === editId);
@@ -122,7 +128,8 @@ export function renderUsuarios() {
                 const res = await fetch('http://localhost:3000/usuarios', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ nome_User: nome, sobrenome_User: sobrenome, email_User: email, senha_User: senha, departamento_User: departamento, cargo_User: cargo, nivelAcesso_User: permissao })
+                    credentials: 'include', // <--- CORREÇÃO AQUI
+                    body: JSON.stringify({ /* dados */ })
                 });
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
                 const data = await res.json();
@@ -149,8 +156,10 @@ export function renderUsuarios() {
 
         if (action === 'remover') {
             try {
-                const res = await fetch(`http://localhost:3000/usuarios/${id}`, { method: 'DELETE' });
-                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                    const res = await fetch(`http://localhost:3000/usuarios/${id}`, { 
+                    method: 'DELETE',
+                    credentials: 'include' // <--- CORREÇÃO AQUI
+                });                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
                 usuarios = usuarios.filter(u => u.id_User !== id);
                 draw();
                 showAlert('Usuário removido com sucesso!');
