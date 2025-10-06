@@ -1,4 +1,5 @@
 import { YEAR } from './utils/constants.js';
+import { API_BASE } from './utils/constants.js';
 import { applyAccent } from './utils/helpers.js';
 import { renderDashboard } from './views/dashboard.js';
 import { renderAbrirChamado } from './views/abrir-chamado.js';
@@ -6,6 +7,8 @@ import { renderMeusChamados } from './views/meus-chamados.js';
 import { renderUsuarios } from './views/usuarios.js';
 import { renderConfig } from './views/config.js';
 import { store } from './store.js';
+
+
 
 // Configuração inicial
 const yearEl = document.getElementById('year');
@@ -57,18 +60,38 @@ document.getElementById('globalSearch').addEventListener('change', e => {
         if (input) { input.value = q; input.dispatchEvent(new Event('input')); }
     }, 0);
 });
+async function fazerLogout() {
+    try {
+        const response = await fetch(`${API_BASE}/auth/logout`, {
+            method: 'POST',
+            credentials: 'include'
+        });
 
+        if (response.ok) {
+            console.log("Sessão encerrada com sucesso.");
+
+            window.location.href = '/login/login_teste.html';
+        } else {
+            alert('Erro ao fazer logout. Tente novamente.');
+
+        }
+    } catch (error) {
+        console.error('Erro de rede ao fazer logout:', error);
+        alert('Erro de conexão.');
+    }
+
+}
 async function getUsuarioLogado() {
     try {
         const response = await fetch('http://localhost:3000/auth/me', {
             credentials: 'include'
         });
-        
+
         if (!response.ok) {
             // Se retornar 401 ou erro, significa que o usuário não está logado
-            return null; 
+            return null;
         }
-        
+
         return await response.json();
     } catch (error) {
         console.error('Erro ao buscar dados do usuário logado:', error);
@@ -85,13 +108,22 @@ async function atualizarMetaUsuario() {
         userMetaDiv.innerHTML = `
             <strong>Olá, ${userData.nome || userData.email}</strong>
             <small>${userData.cargo || 'Nível ' + userData.nivel_acesso} </small>
+            
         `;
     } else {
         // Se não conseguir carregar, mostra uma mensagem padrão ou redireciona
         userMetaDiv.innerHTML = `<strong>Faça login</strong>`;
     }
 }
-
+document.addEventListener('DOMContentLoaded', () => {
+    const logoutButton = document.getElementById('logoutBtn');
+    
+    if (logoutButton) {
+        logoutButton.addEventListener('click', fazerLogout);
+    }
+});
 atualizarMetaUsuario();
+
+
 // Aplica a cor de destaque inicial
 applyAccent(store.preferencias.accent);

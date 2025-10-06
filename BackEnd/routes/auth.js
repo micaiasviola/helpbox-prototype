@@ -111,4 +111,16 @@ router.get('/me', verificaSessao, (req, res) => {
     });
 });
 
+router.post('/logout', (req, res) => {
+    req.session.destroy(err => {
+        if (err) {
+            console.error('Erro ao destruir a sessão:', err);
+            return res.status(500).json({ error: 'Erro ao fazer logout.' });
+        }   
+
+        res.clearCookie('connect.sid'); // Nome padrão do cookie de sessão
+        res.json({ mensagem: 'Logout realizado com sucesso.' });
+    });
+});
+
 module.exports = router;
