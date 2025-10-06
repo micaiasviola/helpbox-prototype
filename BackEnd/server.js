@@ -6,6 +6,7 @@ const verificaSessao = require('./middlewares/verificarSessao.js');
 const usuariosRoutes = require('./routes/usuarios');
 const chamadosRoutes = require('./routes/chamados');
 const authRoutes = require('./routes/auth.js');
+const verificarADM = require('./middlewares/verificarADM.js');
 
 const app = express();
 const PORT = 3000;

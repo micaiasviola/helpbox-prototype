@@ -109,13 +109,23 @@ export function renderUsuarios() {
         if (!nome || !sobrenome || !email || !senha || !departamento) return showAlert('Preencha todos os campos', 'error');
 
         try {
+            const dados = { 
+            nome_User: nome, 
+            sobrenome_User: sobrenome, 
+            email_User: email, 
+            senha_User: senha, 
+            departamento_User: departamento, 
+            cargo_User: cargo, 
+            nivelAcesso_User: permissao 
+        };
+        
             if (editId !== null) {
                 // Modo edição
                 const res = await fetch(`http://localhost:3000/usuarios/${editId}`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
                     credentials: 'include', // <--- CORREÇÃO AQUI
-                    body: JSON.stringify({ /* dados */ })
+                    body: JSON.stringify(dados)
                 });
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
                 const user = usuarios.find(u => u.id_User === editId);
@@ -129,7 +139,7 @@ export function renderUsuarios() {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     credentials: 'include', // <--- CORREÇÃO AQUI
-                    body: JSON.stringify({ /* dados */ })
+                    body: JSON.stringify(dados)
                 });
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
                 const data = await res.json();

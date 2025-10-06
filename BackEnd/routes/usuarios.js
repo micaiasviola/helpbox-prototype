@@ -29,7 +29,7 @@ router.get('/', verificarADM, async (req, res) => {
 });
 
 // POST criar usuário
-router.post('/', async (req, res) => {
+router.post('/', verificarADM, async (req, res) => {
     try {
         const { nome_User, sobrenome_User, email_User, senha_User, cargo_User, departamento_User, nivelAcesso_User } = req.body || {};
 

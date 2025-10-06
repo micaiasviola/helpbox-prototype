@@ -58,5 +58,40 @@ document.getElementById('globalSearch').addEventListener('change', e => {
     }, 0);
 });
 
+async function getUsuarioLogado() {
+    try {
+        const response = await fetch('http://localhost:3000/auth/me', {
+            credentials: 'include'
+        });
+        
+        if (!response.ok) {
+            // Se retornar 401 ou erro, significa que o usuário não está logado
+            return null; 
+        }
+        
+        return await response.json();
+    } catch (error) {
+        console.error('Erro ao buscar dados do usuário logado:', error);
+        return null;
+    }
+}
+
+async function atualizarMetaUsuario() {
+    const userData = await getUsuarioLogado();
+    const userMetaDiv = document.querySelector('.user-meta');
+
+    if (userData) {
+        // Objeto userData: { nome: 'Leo', cargo: 'Administrador', ... }
+        userMetaDiv.innerHTML = `
+            <strong>Olá, ${userData.nome || userData.email}</strong>
+            <small>${userData.cargo || 'Nível ' + userData.nivel_acesso} </small>
+        `;
+    } else {
+        // Se não conseguir carregar, mostra uma mensagem padrão ou redireciona
+        userMetaDiv.innerHTML = `<strong>Faça login</strong>`;
+    }
+}
+
+atualizarMetaUsuario();
 // Aplica a cor de destaque inicial
 applyAccent(store.preferencias.accent);

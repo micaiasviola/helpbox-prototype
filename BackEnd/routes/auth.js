@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcrypt');
 const { getPool, sql } = require('../db.js');
+const verificaSessao = require('../middlewares/verificarSessao.js');
 
 //Função para buscar usuario no bd
 async function buscarUsuarioPorEmail(email){
@@ -11,12 +12,17 @@ async function buscarUsuarioPorEmail(email){
             .input('email', sql.VarChar(255), email)
             .query(`
                 SELECT 
-                    id_User, 
-                    email_User, 
-                    senha_User, 
-                    nivelAcesso_User
-                FROM Usuario 
-                WHERE email_User = @email
+                    id_User, 
+                    email_User, 
+                    senha_User, 
+                    nivelAcesso_User,
+                      -- ADICIONE OS CAMPOS FALTANTES AQUI:
+                      nome_User,
+                      sobrenome_User,
+                      cargo_User,
+                      departamento_User
+                FROM Usuario 
+                WHERE email_User = @email
             `);
         // Retorna o primeiro registro que contém o id, email
         return result.recordset[0] || null;
@@ -71,6 +77,10 @@ router.post('/login', async (req, res) => {
         req.session.usuario = {
             id: usuario.id_User,
             email: usuario.email_User,
+            nome: usuario.nome_User,
+            sobrenome: usuario.sobrenome_User,
+            cargo: usuario.cargo_User,
+            departamento: usuario.departamento_User,
             nivel_acesso: usuario.nivelAcesso_User 
         };
 
@@ -84,6 +94,21 @@ router.post('/login', async (req, res) => {
         console.error('Erro no login:', error);
         res.status(500).json({ error: error.message });
     }
+});
+
+//Função para retornar as informações do usuario logado
+
+router.get('/me', verificaSessao, (req, res) => {
+    //se sessão verificada, retorna os dados do usuario
+    const usuario = req.session.usuario;
+
+    res.json({
+        nome: usuario.nome || 'Usuário',
+        sobrenome: usuario.sobrenome || 'Não Definido',// Se você não armazenou o nome na sessão, pegue-o do BD!
+        cargo: usuario.cargo || 'Não Definido', // Mesma observação
+        nivel_acesso: usuario.nivel_acesso,
+        email: usuario.email
+    });
 });
 
 module.exports = router;
