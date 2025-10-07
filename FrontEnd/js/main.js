@@ -4,7 +4,7 @@ import { applyAccent } from './utils/helpers.js';
 import { renderDashboard } from './views/dashboard.js';
 import { renderAbrirChamado } from './views/abrir-chamado.js';
 // Mantendo o import original (que aponta para solucionar-chamados.js, mas o nome é renderMeusChamados)
-import { renderMeusChamados } from './views/solucionar-chamados.js'; 
+import { renderMeusChamados } from './views/solucionar-chamados.js';
 import { renderUsuarios } from './views/usuarios.js';
 import { renderConfig } from './views/config.js';
 import { store } from './store.js';
@@ -27,10 +27,9 @@ yearEl.textContent = YEAR;
 
 // Sistema de rotas (Mantido no formato original)
 const routes = {
-    'pagina-inicial': renderDashboard, // Adicionei 'pagina-inicial' para capturar o link do menu
+    'pagina-inicial': renderDashboard, 
     dashboard: renderDashboard,
     abrir: renderAbrirChamado,
-    // Nota: O nome da função renderizada é 'renderMeusChamados', mas a rota é 'meus'.
     meus: renderMeusChamados,
     usuarios: renderUsuarios,
     config: renderConfig
@@ -111,7 +110,9 @@ function controlarAcessoMenu(usuarioLogado) {
         // Rota 'meus' (Solucionar Chamados)
         { route: 'meus', nivelMinimo: NIVEL_SOLUCIONADOR, id: 'menuSolucionarChamados' }, 
         // Rota 'usuarios' (Gerenciar Usuários)
-        { route: 'usuarios', nivelMinimo: NIVEL_ADMIN, id: 'menuGerenciarUsuarios' } 
+        { route: 'usuarios', nivelMinimo: NIVEL_ADMIN, id: 'menuGerenciarUsuarios' }, 
+
+        {route: 'dashboard', nivelMinimo: NIVEL_ADMIN, id: 'menuDashboard'}
     ];
 
     linksRestritos.forEach(item => {
