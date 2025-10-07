@@ -17,14 +17,14 @@ export async function renderMeusChamados() {
         <option>Fechado</option>
       </select>
       <input id="busca" class="input" placeholder="Buscar por descrição..." style="max-width:320px"/>
-      <button id="refreshChamados" class="btn">🔄 Atualizar</button>
+      <buttonf id="refreshChamados" class="btn">🔄 Atualizar</button>
     </div>
     <div class="loading" id="loadingChamados">Carregando chamados...</div>
     <table class="table">
       <thead>
         <tr>
           <th>ID Chamado</th>
-          <th>ID Cliente </th>
+          <th>ID Tecnico</th>
           <th>Descrição</th>
           <th>Status</th>
           <th>Prioridade</th>
@@ -64,6 +64,7 @@ function renderChamadosTable(chamados) {
         const tr = document.createElement('tr');
         tr.innerHTML = `
             <td>${c.id_Cham}</td>
+            <td>${c.tecResponsavel_Cham || 'Sem tecnico'}</td>
             <td>${c.descricao_Cham || 'Sem descrição'}</td>
             <td>${renderBadge(c.status_Cham)}</td>
             <td>${getPrioridadeTexto(c.prioridade_Cham)}</td>

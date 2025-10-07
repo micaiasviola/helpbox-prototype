@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login de Teste ADM</title>
+    <style>
+        body { font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; background-color: #f4f4f9; margin: 0; }
+        .login-container { background: white; padding: 30px; border-radius: 8px; box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1); width: 350px; }
+        h2 { text-align: center; color: #333; margin-bottom: 20px; }
+        input[type="email"], input[type="password"] { width: 100%; padding: 10px; margin-bottom: 15px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
+        button { width: 100%; padding: 10px; background-color: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; transition: background-color 0.3s; }
+        button:hover { background-color: #0056b3; }
+        #status-message { margin-top: 20px; padding: 10px; border-radius: 4px; text-align: center; }
+        .success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .info { background-color: #ffeeba; color: #856404; border: 1px solid #ffebcd; }
+    </style>
+</head>
+<body>
+
+<div class="login-container">
+    <h2>Acesso de Teste</h2>
+    
+    <div id="status-message" class="info">Status: Pronto para login.</div>
+
+    <form id="loginForm">
+        <label for="email">Email:</label>
+        <input type="email" id="email" value="leo.micaias@gmail.com" required>
+
+        <label for="senha">Senha:</label>
+        <input type="password" id="senha" value="123456" required>
+
+        <button type="submit">Logar e Testar Nível ADM (3)</button>
+    </form>
+
+    <hr style="margin: 20px 0;">
+    
+    <h3>Testar Rota ADM:</h3>
+    <p>Clique abaixo para tentar acessar uma rota protegida (como <code>GET /usuarios</code>, que requer Nível 3).</p>
+    <button id="testAdmBtn" style="background-color: #28a745;">Tentar Acessar /usuarios</button>
+
+</div>
+
+<script>
+    const API_BASE = 'http://localhost:3000'; // SEU BACKEND
+    const loginForm = document.getElementById('loginForm');
+    const testAdmBtn = document.getElementById('testAdmBtn');
+    const statusMessage = document.getElementById('status-message');
+
+    function updateStatus(message, type) {
+        statusMessage.textContent = `Status: ${message}`;
+        statusMessage.className = type;
+    }
+
+    // 1. FUNÇÃO DE LOGIN
+    loginForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const email = document.getElementById('email').value;
+        const senha = document.getElementById('senha').value;
+
+        updateStatus('Tentando login...', 'info');
+
+        try {
+            const response = await fetch(`${API_BASE}/auth/login`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                // ESSENCIAL: Permite que o cookie de sessão seja enviado e recebido
+                credentials: 'include', 
+                body: JSON.stringify({ email, senha })
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                // Se o login for ADM, use o email que criamos (leo.micaias@gmail.com) e a senha correta
+                updateStatus(`Login realizado com sucesso! Nível de acesso: ${data.nivel_acesso}. O cookie de sessão foi salvo no seu navegador.`, 'success');
+                window.location.href = '../'; // Redireciona para o dashboard
+            } else {
+                updateStatus(`Falha no Login (${response.status}): ${data.error || 'Erro desconhecido'}`, 'error');
+            }
+        } catch (error) {
+            updateStatus(`Erro de Conexão: ${error.message}`, 'error');
+        }
+    });
+
+
+    // 2. FUNÇÃO PARA TESTAR O ACESSO ADM
+    testAdmBtn.addEventListener('click', async () => {
+        updateStatus('Tentando acessar rota protegida...', 'info');
+
+        try {
+            const response = await fetch(`${API_BASE}/usuarios`, {
+                method: 'GET',
+                // ESSENCIAL: Envia o cookie de sessão que foi criado no login
+                credentials: 'include' 
+            });
+
+            if (response.status === 403) {
+                updateStatus('SUCESSO NO TESTE: Acesso Proibido (403 Forbidden). O middleware ADM FUNCIONOU corretamente para este usuário!', 'error');
+            } else if (response.status === 200) {
+                 updateStatus('SUCESSO NO TESTE: Acesso Permitido (200 OK). Você é ADM e a rota foi liberada. O middleware ADM FUNCIONOU!', 'success');
+            } else if (response.status === 401) {
+                 updateStatus('FALHA NO TESTE: Não Autenticado (401). Faça o login novamente.', 'error');
+            } else {
+                const data = await response.json();
+                updateStatus(`Resultado do Teste: ${response.status} - ${data.error || 'Resposta desconhecida'}`, 'info');
+            }
+
+        } catch (error) {
+            updateStatus(`Erro de Conexão: ${error.message}`, 'error');
+        }
+    });
+
+    // Instrução Inicial
+    document.addEventListener('DOMContentLoaded', () => {
+         updateStatus('Instrução: Use "leo.micaias@gmail.com" e "senha123" para testar o ADM (Nível 3).', 'info');
+    });
+
+</script>
+
+</body>
+</html>

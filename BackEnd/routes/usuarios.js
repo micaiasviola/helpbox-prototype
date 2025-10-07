@@ -1,10 +1,13 @@
 // routes/usuarios.js
 const express = require('express');
+const bcrypt = require('bcrypt');
 const router = express.Router();
 const { getPool, sql } = require('../db.js');
 
+const verificarADM = require('../middlewares/verificarADM.js');
+
 // GET todos os usuários
-router.get('/', async (req, res) => {
+router.get('/', verificarADM, async (req, res) => {
     try {
         const pool = await getPool();
         const result = await pool.request().query(`
@@ -26,20 +29,25 @@ router.get('/', async (req, res) => {
 });
 
 // POST criar usuário
-router.post('/', async (req, res) => {
+router.post('/', verificarADM, async (req, res) => {
     try {
         const { nome_User, sobrenome_User, email_User, senha_User, cargo_User, departamento_User, nivelAcesso_User } = req.body || {};
 
         if (!nome_User || !email_User || !senha_User || !departamento_User) {
             return res.status(400).json({ error: "nome, email, senha e departamento são obrigatórios" });
         }
+        
+        // Criptografa a senha antes de salvar no banco
+        const saltRounds = 10;
+        const senhaHash = await bcrypt.hash(senha_User, saltRounds);
 
         const pool = await getPool();
         const result = await pool.request()
             .input('nome', sql.VarChar(255), nome_User)
             .input('sobrenome', sql.VarChar(255), sobrenome_User)
             .input('email', sql.VarChar(255), email_User)
-            .input('senha', sql.VarChar(255), senha_User)
+            // SALVA O HASH DA SENHA (MODIFICADO)
+            .input('senha', sql.VarChar(255), senhaHash) 
             .input('cargo', sql.VarChar(255), cargo_User)
             .input('departamento', sql.VarChar(255), departamento_User)
             .input('nivelAcesso', sql.Int, nivelAcesso_User)
@@ -50,7 +58,7 @@ router.post('/', async (req, res) => {
         (nome_User, sobrenome_User, email_User, senha_User, cargo_User, departamento_User, nivelAcesso_User)
         OUTPUT INSERTED.id_User INTO @InsertedIds
         VALUES (@nome, @sobrenome, @email, @senha, @cargo, @departamento, @nivelAcesso);
-
+        
         SELECT id_User FROM @InsertedIds;
       `);
 
@@ -62,7 +70,7 @@ router.post('/', async (req, res) => {
 });
 
 // PUT atualizar usuário
-router.put('/:id', async (req, res) => {
+router.put('/:id', verificarADM, async (req, res) => {
     try {
         const { id } = req.params;
         const { nome_User, sobrenome_User, email_User, senha_User, cargo_User, departamento_User, nivelAcesso_User } = req.body;
@@ -70,30 +78,41 @@ router.put('/:id', async (req, res) => {
         if (!nome_User || !email_User || !senha_User || !departamento_User) {
             return res.status(400).json({ error: "nome, email, senha e departamento são obrigatórios" });
         }
+        
+        let senhaParaBD = senha_User;
+        
+        // ** NOVO: Hashear a senha APENAS se ela for enviada no corpo da requisição
+        if (senha_User && senha_User.length > 0) { 
+             const saltRounds = 10;
+             senhaParaBD = await bcrypt.hash(senha_User, saltRounds);
+        }
 
         const pool = await getPool();
-        await pool.request()
-            .input('id', sql.Int, id)
-            .input('nome', sql.VarChar(255), nome_User)
-            .input('sobrenome', sql.VarChar(255), sobrenome_User)
-            .input('email', sql.VarChar(255), email_User)
-            .input('senha', sql.VarChar(255), senha_User)
-            .input('cargo', sql.VarChar(255), cargo_User)
-            .input('departamento', sql.VarChar(255), departamento_User)
+        const request = pool.request()
+            // ... (outros inputs) ...
+            .input('senha', sql.VarChar(255), senhaParaBD) // <--- USAR O HASH OU A SENHA ORIGINAL
             .input('nivelAcesso', sql.Int, nivelAcesso_User)
-            .query(`
-        UPDATE Usuario SET
-          nome_User = @nome,
-          sobrenome_User = @sobrenome,
-          email_User = @email,
-          senha_User = @senha,
-          cargo_User = @cargo,
-          departamento_User = @departamento,
-          nivelAcesso_User = @nivelAcesso
-        WHERE id_User = @id
-      `);
 
+        let updateQuery = `
+            UPDATE Usuario SET
+              nome_User = @nome,
+              sobrenome_User = @sobrenome,
+              email_User = @email,
+              cargo_User = @cargo,
+              departamento_User = @departamento,
+              nivelAcesso_User = @nivelAcesso
+        `;
+        
+        // Se a senha foi alterada/hasheada, adicionamos ao UPDATE
+        if (senha_User && senha_User.length > 0) {
+            updateQuery += `, senha_User = @senha`;
+        }
+
+        updateQuery += ` WHERE id_User = @id`;
+        
+        await request.query(updateQuery);
         res.json({ success: true });
+
     } catch (error) {
         console.error('Erro ao atualizar usuário:', error);
         res.status(500).json({ error: error.message });
@@ -101,7 +120,7 @@ router.put('/:id', async (req, res) => {
 });
 
 // DELETE usuário seguro
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', verificarADM, async (req, res) => {
     try {
         const { id } = req.params;
         const userId = parseInt(id, 10);

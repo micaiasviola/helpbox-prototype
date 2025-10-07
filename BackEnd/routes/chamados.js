@@ -4,9 +4,11 @@ const express = require('express');
 const router = express.Router();
 const { getPool, sql } = require('../db.js');
 
+const verificarAdm = require('../middlewares/verificarADM.js');
+
 //GET PARA TODOS OS CHAMADOS
 
-router.get('/', async (req, res) => {
+router.get('/', verificarAdm, async (req, res) => {
     try {
         const pool = await getPool();
         const result = await pool.request().query(`

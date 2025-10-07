@@ -4,12 +4,12 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <link rel="stylesheet" href="/FrontEnd/css/estilo.css" />
+  <link rel="stylesheet" href="/css/estilo.css" />
   <title> HelpBox </title>
   <link rel="icon" type="image/png" href="Logo3.png" />
   <meta name="theme-color" content="#007BFF" />
 
-  <script type="module" src="/FrontEnd/js/main.js"></script>
+  <script type="module" src="/js/main.js"></script>
 
   <!-- Chart.js for dashboard demo -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -29,20 +29,20 @@
       <nav class="menu">
         <a href="#/pagina-inicial" date-route="pagina-inicial" class="menu-item">
           <span class="icon">🏠</span><span>Página Inicial</span>
-          </a>
-         <a href="#/abrir" data-route="abrir" class="menu-item">
+        </a>
+        <a href="#/abrir" data-route="abrir" class="menu-item">
           <span class="icon">➕</span><span>Abrir Chamado</span>
         </a>
         <a href="#/chamados" data-route="chamados" class="menu-item">
           <span class="icon">📋</span><span> Meus Chamados </span>
         </a>
-        <a href="#/meus" data-route="meus" class="menu-item">
+        <a href="#/meus" data-route="meus" class="menu-item" id="menuSolucionarChamados">
           <span class="icon">💡</span><span>Solucionar Chamados</span>
         </a>
-        <a href="#/usuarios" data-route="usuarios" class="menu-item">
+        <a href="#/usuarios" data-route="usuarios" class="menu-item" id="menuGerenciarUsuarios">
           <span class="icon">👥</span><span> Gerenciar Usuários</span>
         </a>
-        <a href="#/dashboard" data-route="dashboard" class="menu-item">
+        <a href="#/dashboard" data-route="dashboard" class="menu-item" id="menuDashboard">
           <span class="icon">📊</span><span>Relatórios</span>
         </a>
         <a href="#/config" data-route="config" class="menu-item">
@@ -64,9 +64,14 @@
           <div class="user">
             <img src="assets/avatar.png" alt="Usuário" />
             <div class="user-meta">
-              <strong>João Silva</strong>
-              <small>Analista de Sistemas </small>
+              <strong></strong>
+              <small></small>
+              
+              
             </div>
+            <button id="logoutBtn" class="btn btn-logout" style="margin-top: 5px;">
+                Sair
+              </button>
           </div>
         </div>
       </header>
