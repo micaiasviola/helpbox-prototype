@@ -59,7 +59,24 @@ export async function apiCreateChamado(dados) {
         if (response.ok) {
             return await response.json();
         }
-        throw new Error('Erro ao criar chamado');
+
+        // --- INÍCIO DO TRATAMENTO ROBUSTO DE ERRO ---
+        // Tenta ler o corpo JSON da resposta de erro (onde o backend envia a mensagem)
+        let errorData;
+        try {
+            errorData = await response.json();
+        } catch (e) {
+            // Se falhar ao ler JSON, assume que a resposta é texto simples ou vazia.
+            errorData = { error: `Erro HTTP ${response.status}: ${response.statusText}` };
+        }
+        
+        // Lança um novo erro com a mensagem do backend.
+        // Se o backend enviou { error: "mensagem" }, usamos essa mensagem.
+        const errorMessage = errorData.error || 'Ocorreu um erro desconhecido no servidor.';
+        
+        throw new Error(errorMessage); 
+        // --- FIM DO TRATAMENTO ROBUSTO DE ERRO ---
+
     } catch (error) {
         console.error('Erro API:', error);
         throw error;

@@ -43,8 +43,6 @@ router.post('/', async (req, res) => {
             categoria,
             descricao,
             status,
-            
-            dataProblema,
             impacto,
             usuarios,
             frequencia
@@ -57,7 +55,7 @@ router.post('/', async (req, res) => {
 
         // Se o usuário não preencheu a data do problema, use a data de abertura.
         const dataProblemaFormatada = dataProblemaInput ? new Date(dataProblemaInput) : dataAbertura;
-
+        
         // Insere o novo chamado no banco de dados.
         const result = await pool.request()
             .input('titulo', sql.VarChar(255), titulo)
