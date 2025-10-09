@@ -71,7 +71,7 @@ function navigate() {
     const hashParts = fullHash.split('/');
     const hash = hashParts[0];
     // Pega o objeto do usuário (GARANTIDO de estar carregado pela initializeApp)
-    const usuario = store.usuario; 
+    const usuario = store.usuarioLogado; 
 
     // 1. GUARDA DE ROTA: Checagem de Acesso
     const nivelNecessario = ROTA_NIVEL_MINIMO[hash];
@@ -161,7 +161,7 @@ async function fazerLogout() {
         });
 
         console.log("Sessão encerrada com sucesso.");
-        store.usuario = null; 
+        store.usuarioLogado = null; 
         window.location.href = '/login/login_teste.html';
 
     } catch (error) {
@@ -184,7 +184,7 @@ async function atualizarMetaUsuario() {
 
     if (userData) {
         // Armazena no store antes de qualquer chamada a navigate()
-        store.usuario = userData;
+        store.usuarioLogado = userData;
         
         // Atualiza a interface do usuário
         userMetaDiv.innerHTML = `

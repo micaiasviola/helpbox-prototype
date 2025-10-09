@@ -104,8 +104,8 @@ router.get('/me', verificaSessao, (req, res) => {
 
     res.json({
         nome: usuario.nome || 'Usuário',
-        sobrenome: usuario.sobrenome || 'Não Definido',// Se você não armazenou o nome na sessão, pegue-o do BD!
-        cargo: usuario.cargo || 'Não Definido', // Mesma observação
+        sobrenome: usuario.sobrenome || 'Não Definido',
+        cargo: usuario.cargo || 'Não Definido',
         nivel_acesso: usuario.nivel_acesso,
         email: usuario.email
     });
