@@ -16,6 +16,7 @@ router.get('/', verificarAdm, async (req, res) => {
             id_Cham,
             status_Cham,
             dataAbertura_Cham,
+            titulo_Cham,
             dataFechamento_Cham,
             prioridade_Cham,
             categoria_Cham,
@@ -33,6 +34,78 @@ router.get('/', verificarAdm, async (req, res) => {
     }
 
 });
+
+//POST para criar um chamado
+router.post('/', async (req, res) => {
+    try {
+        const {
+            titulo,
+            categoria,
+            descricao,
+            status,
+            
+            dataProblema,
+            impacto,
+            usuarios,
+            frequencia
+        } = req.body;
+        const pool = await getPool();
+
+        const prioridadePadrao = 'B';
+        const dataProblemaInput = req.body.dataProblema;
+        const dataAbertura = new Date(req.body.dataAbertura); // A data de abertura deve ser válida
+
+        // Se o usuário não preencheu a data do problema, use a data de abertura.
+        const dataProblemaFormatada = dataProblemaInput ? new Date(dataProblemaInput) : dataAbertura;
+
+        // Insere o novo chamado no banco de dados.
+        const result = await pool.request()
+            .input('titulo', sql.VarChar(255), titulo)
+            .input('categoria', sql.VarChar(50), categoria)
+            .input('descricao', sql.VarChar(sql.MAX), descricao)
+            .input('status', sql.VarChar(20), status || 'Aberto')
+            .input('dataAbertura', sql.DateTime, new Date(dataAbertura))
+            .input('dataProblema', sql.DateTime, dataProblemaFormatada) // ATENÇÃO: Use sql.DateTime se a coluna for DATETIME
+
+            // NOVOS CAMPOS INCLUÍDOS
+            .input('impacto', sql.VarChar(50), impacto || null)
+            .input('usuarios', sql.VarChar(50), usuarios || null)
+            .input('frequencia', sql.VarChar(50), frequencia || null)
+            .input('prioridade', sql.Char(1), prioridadePadrao)
+
+            .query(`
+                INSERT INTO Chamado (
+                    titulo_Cham, status_Cham, dataAbertura_Cham, categoria_Cham, descricao_Cham,
+                    dataProblema, impacto_Cham, usuarios_Cham, frequencia_Cham, prioridade_Cham
+                )
+                VALUES (
+                    @titulo, @status, @dataAbertura, @categoria, @descricao,
+                    @dataProblema, @impacto, @usuarios, @frequencia, @prioridade
+                )
+            `);
+
+        const insertedChamado = await pool.request()
+            .query(`
+                SELECT TOP 1 
+                    id_Cham, status_Cham, dataAbertura_Cham, titulo_Cham, prioridade_Cham, categoria_Cham
+                    -- Você pode selecionar todas as colunas que precisa aqui
+                FROM Chamado
+                ORDER BY id_Cham DESC
+            `);
+
+         // VERIFICA SE O REGISTRO EXISTE ANTES DE TENTAR LER [0] (Correção do TypeError)
+        if (insertedChamado.recordset && insertedChamado.recordset.length > 0) {
+            return res.status(201).json(insertedChamado.recordset[0]);
+        }
+
+        // Se por algum motivo o INSERT funcionou mas o SELECT não encontrou nada (improvável)
+        throw new Error("Chamado inserido, mas não pôde ser recuperado.");
+    } catch (error) {
+        console.error('Erro ao criar chamado:', error);
+        res.status(500).json({ error: 'Erro ao criar chamado' });
+    }
+});
+
 
 // PUT atualizar chamado
 router.put('/:id', async (req, res) => {
