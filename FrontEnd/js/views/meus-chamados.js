@@ -40,7 +40,7 @@ class MeusChamadosView {
                 <thead>
                     <tr>
                         <th>ID Chamado</th>
-                        <th>ID Cliente</th> 
+                        <th>Cliente</th> 
                         <th>Título</th>
                         <th>Status</th>
                         <th>Prioridade</th>
@@ -136,17 +136,25 @@ class MeusChamadosView {
         const tbody = document.getElementById('tbodyChamados');
         if (!tbody) return;
 
-        tbody.innerHTML = data.map(chamado => `
-            <tr>
-                <td>${chamado.id_Cham}</td>
-                <td>${chamado.clienteId_Cham || 'N/A'}</td> <td>${chamado.titulo_Cham || chamado.descricao_Cham.substring(0, 50) + '...'}</td>
-                <td>${chamado.status_Cham}</td>
-                <td>${chamado.prioridade_Cham}</td>
-                <td>${chamado.categoria_Cham}</td>
-                <td>${new Date(chamado.dataAbertura_Cham).toLocaleDateString()}</td>
-                <td><button class="btn btn-secondary" onclick="detalharChamado(${chamado.id_Cham})">Ver</button></td>
-            </tr>
-        `).join('');
+        tbody.innerHTML = data.map(chamado => {
+            
+            // 🚨 NOVO: Combina o nome e sobrenome
+            const nomeCompleto = `${chamado.nome_User || ''} ${chamado.sobrenome_User || ''}`.trim();
+            
+            return `
+                <tr>
+                    <td>${chamado.id_Cham}</td>
+                    <td>${nomeCompleto || chamado.clienteId_Cham}</td> <td>${chamado.titulo_Cham || chamado.descricao_Cham.substring(0, 50) + '...'}</td>
+                    <td>${chamado.status_Cham}</td>
+                    <td>${chamado.prioridade_Cham}</td>
+                    <td>${chamado.categoria_Cham}</td>
+                    <td>${new Date(chamado.dataAbertura_Cham).toLocaleDateString()}</td>
+                    <td> <button class="btn btn-primary btn-sm" onclick="detalharChamadoIA(${chamado.id_Cham})">
+                            Ver Solução
+                        </button></td>
+                </tr>
+            `;
+        }).join('');
         
         // Se a busca/filtro não retornar resultados
         if (data.length === 0) {

@@ -9,7 +9,7 @@ import { renderMeusChamados } from './views/meus-chamados.js';
 import { renderUsuarios } from './views/usuarios.js';
 import { renderConfig } from './views/config.js';
 import { store } from './store.js';
-
+import { iniciarDetalhesIA } from './views/detalhes-IA.js'; 
 // Constantes de Nível de Acesso
 const NIVEL_ADMIN = 3;
 const NIVEL_SOLUCIONADOR = 2; // Assumindo que o acesso a "Solucionar Chamados" começa no nível 2 (Técnico)
@@ -65,8 +65,11 @@ function renderAccessDenied(hashTentado) {
  * Função principal de navegação e Guarda de Rota (Route Guard).
  */
 function navigate() {
-    const hash = location.hash.replace('#/', '') || 'pagina-inicial'; // Usa 'pagina-inicial' como padrão
-
+    const fullHash = location.hash.replace('#/', '') || 'pagina-inicial'; 
+    
+    // 2. 🚨 NOVO: Extrai apenas a parte principal da rota (ex: 'chamados' de 'chamados/detalhe/42')
+    const hashParts = fullHash.split('/');
+    const hash = hashParts[0];
     // Pega o objeto do usuário (GARANTIDO de estar carregado pela initializeApp)
     const usuario = store.usuario; 
 
@@ -214,6 +217,7 @@ async function atualizarMetaUsuario() {
 
 // Evento de navegação (para clique no menu ou hash manual)
 window.addEventListener('hashchange', navigate);
+window.detalharChamadoIA = iniciarDetalhesIA;
 
 document.addEventListener('DOMContentLoaded', () => {
     // Configura o botão de logout
@@ -236,7 +240,7 @@ document.getElementById('sidebarToggle').addEventListener('click', () => {
 
 document.getElementById('globalSearch').addEventListener('change', e => {
     const q = e.target.value.toLowerCase();
-    location.hash = '#/todos';
+    // location.hash = '#/todos';
     setTimeout(() => {
         const input = document.getElementById('busca');
         if (input) { input.value = q; input.dispatchEvent(new Event('input')); }

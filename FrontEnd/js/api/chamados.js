@@ -69,12 +69,12 @@ export async function apiCreateChamado(dados) {
             // Se falhar ao ler JSON, assume que a resposta é texto simples ou vazia.
             errorData = { error: `Erro HTTP ${response.status}: ${response.statusText}` };
         }
-        
+
         // Lança um novo erro com a mensagem do backend.
         // Se o backend enviou { error: "mensagem" }, usamos essa mensagem.
         const errorMessage = errorData.error || 'Ocorreu um erro desconhecido no servidor.';
-        
-        throw new Error(errorMessage); 
+
+        throw new Error(errorMessage);
         // --- FIM DO TRATAMENTO ROBUSTO DE ERRO ---
 
     } catch (error) {
@@ -89,10 +89,7 @@ export async function apiCreateChamado(dados) {
  */
 export async function apiGetMeusChamados(clienteId) {
     try {
-        // Opção 1: Passar o ID na URL (Se o backend aceitar o ID)
-        // const response = await fetch(`${API_BASE}/chamados/cliente/${clienteId}`, {
-        
-        // Opção 2: Confiar que a API usa o 'credentials: include' para pegar o ID da session
+     
         const response = await fetch(`${API_BASE}/chamados/meus`, {
             credentials: 'include'
         });
@@ -100,7 +97,7 @@ export async function apiGetMeusChamados(clienteId) {
         if (response.ok) {
             return await response.json();
         }
-        
+
         // Se a resposta não for OK, tenta pegar a mensagem de erro específica.
         let errorData = {};
         try {
@@ -114,5 +111,81 @@ export async function apiGetMeusChamados(clienteId) {
     } catch (error) {
         console.error('Erro API:', error);
         throw error;
+    }
+}
+
+/**
+ * Encaminha um chamado do status aberto (ia) para em andamento (tecnico)
+ * @param {number} id O ID do chamado.
+ */
+
+export async function apiEncaminharChamado(id) {
+    try {
+        const response = await fetch(`${API_BASE}/chamados/escalar/${id}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            credentials: 'include',
+            body: JSON.stringify({
+                status_Cham: 'Em Andamento',
+                prioridade_Cham: 'M'
+            })
+        });
+        if (response.ok) {
+            return await response.json();
+        }
+
+        let errorData = await response.json().catch(() => ({ error: 'Erro ao escalar chamado.' }));
+        throw new Error(errorData.error || 'Erro ao encaminhar chamado para técnico.');
+
+    } catch (error) {
+        console.error('Erro API (Encaminhar):', error);
+        throw error;
+    }
+}
+
+/**
+ * Busca um chamado específico por ID na API
+ * @param {number} id O ID do chamado a ser buscado.
+ */
+export async function apiGetChamadoById(id) {
+    // 1. Validação simples para garantir que o ID não está vazio
+    if (!id) {
+        throw new Error("ID do chamado é obrigatório.");
+    }
+    
+    try {
+        // 2. Monta a URL com o ID: /chamados/123
+        const response = await fetch(`${API_BASE}/chamados/${id}`, {
+            // Credentials 'include' é crucial para enviar cookies de sessão, se necessário
+            credentials: 'include' 
+        });
+
+        if (response.ok) {
+            // 3. Retorna os dados do chamado encontrado
+            return await response.json();
+        }
+
+        // Se a resposta não for 200 OK (ex: 404 Not Found, 500 Internal Error)
+        
+        // Tenta ler o corpo JSON da resposta de erro (como você já faz em outras funções)
+        let errorData;
+        try {
+            errorData = await response.json();
+        } catch (e) {
+            // Se falhar, usa a mensagem padrão HTTP
+            errorData = { error: `Erro HTTP ${response.status}: ${response.statusText}` };
+        }
+
+        // Lança um erro com a mensagem do backend
+        const errorMessage = errorData.error || `Erro ${response.status} ao buscar o chamado ${id}.`;
+        
+        throw new Error(errorMessage);
+
+    } catch (error) {
+        console.error(`Erro API ao buscar chamado ${id}:`, error);
+        // Relança o erro para que o componente/hook que chamou possa tratá-lo
+        throw error; 
     }
 }

@@ -1,5 +1,4 @@
 import { apiGetUsuarios, apiCreateUsuario, apiUpdateUsuario, apiDeleteUsuario } from '../api/usuarios.js';
-import { NIVEL_ACESSO_MAP, API_BASE } from '../utils/constants.js';
 
 /**
  * Exibe a interface de gerenciamento de usuários
