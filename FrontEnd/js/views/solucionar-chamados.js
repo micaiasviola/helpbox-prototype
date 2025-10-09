@@ -6,7 +6,7 @@ let chamadosData = [];
 /**
  * Exibe a lista de chamados com filtros
  */
-export async function renderMeusChamados() {
+export async function renderTodosChamados() {
     const view = document.getElementById('view');
     view.innerHTML = `
     <div class="toolbar">

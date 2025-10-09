@@ -82,3 +82,37 @@ export async function apiCreateChamado(dados) {
         throw error;
     }
 }
+
+/**
+ * Busca os chamados do cliente logado pelo ID (ou confia na session/cookie)
+ * @param {number} clienteId O ID do cliente logado.
+ */
+export async function apiGetMeusChamados(clienteId) {
+    try {
+        // Opção 1: Passar o ID na URL (Se o backend aceitar o ID)
+        // const response = await fetch(`${API_BASE}/chamados/cliente/${clienteId}`, {
+        
+        // Opção 2: Confiar que a API usa o 'credentials: include' para pegar o ID da session
+        const response = await fetch(`${API_BASE}/chamados/meus`, {
+            credentials: 'include'
+        });
+
+        if (response.ok) {
+            return await response.json();
+        }
+        
+        // Se a resposta não for OK, tenta pegar a mensagem de erro específica.
+        let errorData = {};
+        try {
+            errorData = await response.json();
+        } catch (e) {
+            errorData.error = `Erro HTTP ${response.status}: ${response.statusText}`;
+        }
+
+        throw new Error(errorData.error || 'Erro ao buscar seus chamados.');
+
+    } catch (error) {
+        console.error('Erro API:', error);
+        throw error;
+    }
+}

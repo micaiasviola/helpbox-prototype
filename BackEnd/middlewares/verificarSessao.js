@@ -1,7 +1,7 @@
 // middlewares/verificaSessao.js
 
 function verificaSessao(req, res, next) {
-    // ... sua lógica de sessão ...
+    
     if (req.session.usuario) {
         next(); 
     } else {

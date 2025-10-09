@@ -48,16 +48,17 @@ router.post('/', async (req, res) => {
             frequencia
         } = req.body;
         const pool = await getPool();
-
+        const clienteId = req.session?.usuario?.id;
         const prioridadePadrao = 'B';
         const dataProblemaInput = req.body.dataProblema;
         const dataAbertura = new Date(req.body.dataAbertura); // A data de abertura deve ser válida
 
         // Se o usuário não preencheu a data do problema, use a data de abertura.
         const dataProblemaFormatada = dataProblemaInput ? new Date(dataProblemaInput) : dataAbertura;
-        
+
         // Insere o novo chamado no banco de dados.
         const result = await pool.request()
+            .input('clienteId', sql.Int, clienteId)
             .input('titulo', sql.VarChar(255), titulo)
             .input('categoria', sql.VarChar(50), categoria)
             .input('descricao', sql.VarChar(sql.MAX), descricao)
@@ -73,11 +74,11 @@ router.post('/', async (req, res) => {
 
             .query(`
                 INSERT INTO Chamado (
-                    titulo_Cham, status_Cham, dataAbertura_Cham, categoria_Cham, descricao_Cham,
+                    clienteId_Cham,titulo_Cham, status_Cham, dataAbertura_Cham, categoria_Cham, descricao_Cham,
                     dataProblema, impacto_Cham, usuarios_Cham, frequencia_Cham, prioridade_Cham
                 )
                 VALUES (
-                    @titulo, @status, @dataAbertura, @categoria, @descricao,
+                    @clienteId, @titulo, @status, @dataAbertura, @categoria, @descricao,
                     @dataProblema, @impacto, @usuarios, @frequencia, @prioridade
                 )
             `);
@@ -91,7 +92,7 @@ router.post('/', async (req, res) => {
                 ORDER BY id_Cham DESC
             `);
 
-         // VERIFICA SE O REGISTRO EXISTE ANTES DE TENTAR LER [0] (Correção do TypeError)
+        // VERIFICA SE O REGISTRO EXISTE ANTES DE TENTAR LER [0] (Correção do TypeError)
         if (insertedChamado.recordset && insertedChamado.recordset.length > 0) {
             return res.status(201).json(insertedChamado.recordset[0]);
         }
@@ -137,6 +138,40 @@ router.put('/:id', async (req, res) => {
         res.json({ success: true });
     } catch (error) {
         res.status(500).json({ error: error.message });
+    }
+});
+
+router.get('/meus', async (req, res) => {
+    // **IMPORTANTE:** Você deve ter um middleware que anexa o ID do usuário logado ao objeto req.
+    const clienteId = req.session?.usuario?.id; // Ou req.clienteId, dependendo de como você configura a autenticação.
+
+    if (!clienteId) {
+        return res.status(401).json({ error: 'ID do cliente não encontrado na sessão.' });
+    }
+
+    try {
+        const pool = await getPool();
+        const result = await pool.request()
+            .input('clienteId', sql.Int, clienteId)
+            .query(`
+                SELECT
+                    id_Cham,
+                    status_Cham,
+                    dataAbertura_Cham,
+                    titulo_Cham,
+                    prioridade_Cham,
+                    categoria_Cham,
+                    descricao_Cham,
+                    tecResponsavel_Cham -- Mantém para a tabela, se existir
+                    -- outras colunas necessárias
+                FROM Chamado
+                WHERE clienteId_Cham = @clienteId -- ASSUMIMOS QUE EXISTE clienteId_Cham na sua tabela Chamado
+                ORDER BY dataAbertura_Cham DESC
+            `);
+        res.json(result.recordset);
+    } catch (error) {
+        console.error('Erro ao buscar chamados do cliente:', error);
+        res.status(500).json({ error: 'Erro interno ao buscar seus chamados.' });
     }
 });
 

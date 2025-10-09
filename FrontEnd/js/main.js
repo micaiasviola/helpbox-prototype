@@ -4,7 +4,8 @@ import { applyAccent } from './utils/helpers.js';
 import { renderDashboard } from './views/dashboard.js';
 import { renderAbrirChamado } from './views/abrir-chamado.js';
 // Mantendo o import original (que aponta para solucionar-chamados.js, mas o nome é renderMeusChamados)
-import { renderMeusChamados } from './views/solucionar-chamados.js';
+import { renderTodosChamados } from './views/solucionar-chamados.js';
+import { renderMeusChamados } from './views/meus-chamados.js';
 import { renderUsuarios } from './views/usuarios.js';
 import { renderConfig } from './views/config.js';
 import { store } from './store.js';
@@ -12,11 +13,12 @@ import { store } from './store.js';
 // Constantes de Nível de Acesso
 const NIVEL_ADMIN = 3;
 const NIVEL_SOLUCIONADOR = 2; // Assumindo que o acesso a "Solucionar Chamados" começa no nível 2 (Técnico)
+const NIVEL_CLIENTE = 1;
 
 // Mapeamento de Rotas Restritas (Guarda de Rota)
 const ROTA_NIVEL_MINIMO = {
-    // Rota /meus (Solucionar Chamados) - Acesso bloqueado para Nível 1
-    meus: NIVEL_SOLUCIONADOR, 
+    // Rota /todos (Solucionar Chamados) - Acesso bloqueado para Nível 1
+    todos: NIVEL_SOLUCIONADOR, 
     // Rota /usuarios (Gerenciar Usuários) - Acesso bloqueado para Nível 1 e 2
     usuarios: NIVEL_ADMIN 
 };
@@ -30,7 +32,8 @@ const routes = {
     'pagina-inicial': renderDashboard, 
     dashboard: renderDashboard,
     abrir: renderAbrirChamado,
-    meus: renderMeusChamados,
+    chamados: renderMeusChamados,
+    todos: renderTodosChamados,
     usuarios: renderUsuarios,
     config: renderConfig
 };
@@ -107,8 +110,8 @@ function controlarAcessoMenu(usuarioLogado) {
     const nivelDoUsuario = usuarioLogado.nivel_acesso; 
 
     const linksRestritos = [
-        // Rota 'meus' (Solucionar Chamados)
-        { route: 'meus', nivelMinimo: NIVEL_SOLUCIONADOR, id: 'menuSolucionarChamados' }, 
+        // Rota 'todos' (Solucionar Chamados)
+        { route: 'todos', nivelMinimo: NIVEL_SOLUCIONADOR, id: 'menuSolucionarChamados' }, 
         // Rota 'usuarios' (Gerenciar Usuários)
         { route: 'usuarios', nivelMinimo: NIVEL_ADMIN, id: 'menuGerenciarUsuarios' }, 
 
@@ -233,7 +236,7 @@ document.getElementById('sidebarToggle').addEventListener('click', () => {
 
 document.getElementById('globalSearch').addEventListener('change', e => {
     const q = e.target.value.toLowerCase();
-    location.hash = '#/meus';
+    location.hash = '#/todos';
     setTimeout(() => {
         const input = document.getElementById('busca');
         if (input) { input.value = q; input.dispatchEvent(new Event('input')); }
