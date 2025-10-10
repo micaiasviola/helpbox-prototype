@@ -1,189 +1,216 @@
 import { apiGetChamados, apiUpdateChamado } from '../api/chamados.js';
 import { renderBadge, getPrioridadeTexto, formatDate } from '../utils/helpers.js';
+import { store } from '../store.js';
 
-let chamadosData = [];
+const NIVEL_ADMIN = 3;
+const NIVEL_TECNICO = 2;
 
 /**
- * Exibe a lista de chamados com filtros
+ * Classe para gerenciar a exibição, carregamento e filtragem dos chamados.
+ * Encapsula o estado e a lógica de manipulação do DOM.
  */
-export async function renderTodosChamados() {
-    const view = document.getElementById('view');
-    view.innerHTML = `
-    <div class="toolbar">
-      <select id="filtroStatus" class="select" style="max-width:220px">
-        <option value="">Todos os status</option>
-        <option>Aberto</option>
-        <option>Em andamento</option>
-        <option>Fechado</option>
-      </select>
-      <input id="busca" class="input" placeholder="Buscar por descrição..." style="max-width:320px"/>
-      <buttonf id="refreshChamados" class="btn">🔄 Atualizar</button>
-    </div>
-    <div class="loading" id="loadingChamados">Carregando chamados...</div>
-    <table class="table">
-      <thead>
-        <tr>
-          <th>ID Chamado</th>
-          <th>ID Tecnico</th>
-          <th>Descrição</th>
-          <th>Status</th>
-          <th>Prioridade</th>
-          <th>Categoria</th>
-          <th>Data Abertura</th>
-          <th>Ações</th>
-        </tr>
-      </thead>
-      <tbody id="tbody"></tbody>
-    </table>
-  `;
-
-    await loadChamadosFromDB();
-
-    // Configurar eventos
-    document.getElementById('refreshChamados').addEventListener('click', () => loadChamadosFromDB());
-    document.getElementById('filtroStatus').addEventListener('change', drawChamados);
-    document.getElementById('busca').addEventListener('input', drawChamados);
-}
-
-async function loadChamadosFromDB() {
-    try {
-        chamadosData = await apiGetChamados();
-        renderChamadosTable(chamadosData);
-        document.getElementById('loadingChamados').style.display = 'none';
-    } catch (error) {
-        document.getElementById('loadingChamados').textContent = 'Erro ao carregar chamados';
-        console.error('Erro:', error);
+class ChamadoManager {
+    /*
+    *@param {number} acessLevel - Nível de acesso do usuário atual.
+    */constructor() {
+        /** @type {Array<Object>} Dados brutos dos chamados carregados do DB. */
+        this.chamadosData = [];
+        this.tbody = null;
+        this.loadingIndicator = null;
+        this.filtroStatus = null;
+        this.buscaInput = null;
     }
-}
 
-function renderChamadosTable(chamados) {
-    const tbody = document.getElementById('tbody');
-    tbody.innerHTML = '';
+    /**
+     * Inicializa a view, carrega os dados e configura os eventos.
+     */
+    async init() {
+        this.renderBaseHTML();
+        this.assignDOMelements();
+        this.setupEvents();
+        await this.loadChamadosFromDB();
+    }
 
-    chamados.forEach(c => {
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-            <td>${c.id_Cham}</td>
-            <td>${c.tecResponsavel_Cham || 'Sem tecnico'}</td>
-            <td>${c.descricao_Cham || 'Sem descrição'}</td>
-            <td>${renderBadge(c.status_Cham)}</td>
-            <td>${getPrioridadeTexto(c.prioridade_Cham)}</td>
-            <td>${c.categoria_Cham || 'Não definida'}</td>
-            <td>${formatDate(c.dataAbertura_Cham)}</td>
-            <td>
-                <button class="btn" data-action="progress" data-id="${c.id_Cham}">Resolver</button>
-                <button class="btn secondary" data-action="close" data-id="${c.id_Cham}">Finalizar ✓</button>
-            </td>`;
-        tbody.appendChild(tr);
-    });
+    /**
+     * Renderiza o HTML estático da interface (toolbar e tabela).
+     * @private
+     */
+    renderBaseHTML() {
+        const view = document.getElementById('view');
+        view.innerHTML = `
+            <div class="toolbar">
+                <select id="filtroStatus" class="select" style="max-width:220px">
+                    <option value="">Todos os status</option>
+                    <option>Aberto</option>
+                    <option>Em andamento</option>
+                    <option>Fechado</option>
+                </select>
+                <input id="busca" class="input" placeholder="Buscar por descrição..." style="max-width:320px"/>
+                <button id="refreshChamados" class="btn">🔄 Atualizar</button>
+            </div>
+            <div class="loading" id="loadingChamados">Carregando chamados...</div>
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>ID Chamado</th>
+                        <th>ID Tecnico</th>
+                        <th>Descrição</th>
+                        <th>Status</th>
+                        <th>Prioridade</th>
+                        <th>Categoria</th>
+                        <th>Data Abertura</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody id="tbody"></tbody>
+            </table>
+        `;
+    }
 
-    tbody.addEventListener('click', handleChamadoActions);
-}
+    /**
+     * Atribui as referências aos elementos do DOM para uso interno.
+     * @private
+     */
+    assignDOMelements() {
+        this.tbody = document.getElementById('tbody');
+        this.loadingIndicator = document.getElementById('loadingChamados');
+        this.filtroStatus = document.getElementById('filtroStatus');
+        this.buscaInput = document.getElementById('busca');
+    }
 
-/**
- * Filtra e exibe os chamados com base nos critérios selecionados
- */
-function drawChamados() {
-    if (!chamadosData) return;
+    /**
+     * Configura os listeners de eventos.
+     * @private
+     */
+    setupEvents() {
+        document.getElementById('refreshChamados').addEventListener('click', () => this.loadChamadosFromDB());
+        this.filtroStatus.addEventListener('change', () => this.drawChamados());
+        this.buscaInput.addEventListener('input', () => this.drawChamados());
+        // O event listener para as ações dos botões deve ser no tbody
+        // pois os botões são adicionados dinamicamente.
+        this.tbody.addEventListener('click', this.handleChamadoActions.bind(this));
+    }
 
-    const tbody = document.getElementById('tbody');
-    tbody.innerHTML = '';
+    /**
+     * Carrega os dados de chamados da API e atualiza o estado da classe.
+     */
+    async loadChamadosFromDB() {
+        try {
+            if (this.loadingIndicator) {
+                this.loadingIndicator.style.display = 'block';
+                this.loadingIndicator.textContent = 'Carregando chamados...';
+            }
+            
+            this.chamadosData = await apiGetChamados();
+            this.drawChamados(this.chamadosData);
+            
+            if (this.loadingIndicator) {
+                 this.loadingIndicator.style.display = 'none';
+            }
+        } catch (error) {
+            if (this.loadingIndicator) {
+                this.loadingIndicator.textContent = 'Erro ao carregar chamados';
+            }
+            console.error('Erro ao carregar chamados:', error);
+        }
+    }
 
-    const status = document.getElementById('filtroStatus').value;
-    const q = document.getElementById('busca').value.toLowerCase();
+    /**
+     * Renderiza a tabela de chamados (linhas).
+     * @param {Array<Object>} chamados - Lista de chamados a serem renderizados.
+     * @private
+     */
+    renderChamadosTable(chamados) {
+        if (!this.tbody) return;
 
-    chamadosData
-        .filter(c => {
+        this.tbody.innerHTML = '';
+        const rows = chamados.map(c => {
+            return `
+                <tr>
+                    <td>${c.id_Cham}</td>
+                    <td>${c.tecResponsavel_Cham || 'Sem tecnico'}</td>
+                    <td>${c.descricao_Cham || 'Sem descrição'}</td>
+                    <td>${renderBadge(c.status_Cham)}</td>
+                    <td>${getPrioridadeTexto(c.prioridade_Cham)}</td>
+                    <td>${c.categoria_Cham || 'Não definida'}</td>
+                    <td>${formatDate(c.dataAbertura_Cham)}</td>
+                    <td>
+                        <button class="btn" data-action="progress" data-id="${c.id_Cham}">Mover ↻</button>
+                        <button class="btn secondary" data-action="close" data-id="${c.id_Cham}">Finalizar ✓</button>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+        this.tbody.innerHTML = rows;
+    }
+
+    /**
+     * Filtra e exibe os chamados com base nos critérios selecionados.
+     */
+    drawChamados() {
+        if (!this.chamadosData || this.chamadosData.length === 0) {
+             this.renderChamadosTable([]); // Limpa a tabela
+             return;
+        }
+
+        const status = this.filtroStatus.value;
+        const q = this.buscaInput.value.toLowerCase();
+
+        const chamadosFiltrados = this.chamadosData.filter(c => {
             const statusMatch = !status || c.status_Cham.toLowerCase() === status.toLowerCase();
             const searchMatch = !q ||
                 (c.descricao_Cham && c.descricao_Cham.toLowerCase().includes(q)) ||
                 (c.categoria_Cham && c.categoria_Cham.toLowerCase().includes(q));
             return statusMatch && searchMatch;
-        })
-        .forEach(c => {
-            const tr = document.createElement('tr');
-            tr.innerHTML = `
-        <td>${c.id_Cham}</td>
-        <td>${c.descricao_Cham || 'Sem descrição'}</td>
-        <td>${renderBadge(c.status_Cham)}</td>
-        <td>${getPrioridadeTexto(c.prioridade_Cham)}</td>
-        <td>${c.categoria_Cham || 'Não definida'}</td>
-        <td>${formatDate(c.dataAbertura_Cham)}</td>
-        <td>
-          <button class="btn" data-action="progress" data-id="${c.id_Cham}">Mover ↻</button>
-          <button class="btn secondary" data-action="close" data-id="${c.id_Cham}">Finalizar ✓</button>
-        </td>`;
-            tbody.appendChild(tr);
         });
-}
 
-/**
- * Manipula as ações dos botões na tabela de chamados
- * @param {Event} e - Evento de clique
- */
-async function handleChamadoActions(e) {
-    const btn = e.target.closest('button');
-    if (!btn) return;
+        this.renderChamadosTable(chamadosFiltrados);
+    }
 
-    const id = +btn.dataset.id;
-    const action = btn.dataset.action;
+    /**
+     * Manipula as ações dos botões na tabela de chamados.
+     * @param {Event} e - Evento de clique
+     * @private
+     */
+    async handleChamadoActions(e) {
+        const btn = e.target.closest('button');
+        if (!btn) return;
 
-    try {
-        if (action === 'progress') {
-            await apiUpdateChamado(id, { status_Cham: 'em andamento' });
-        } else if (action === 'close') {
-            await apiUpdateChamado(id, {
-                status_Cham: 'fechado',
-                dataFechamento_Cham: new Date().toISOString().slice(0, 10)
-            });
+        const id = +btn.dataset.id;
+        const action = btn.dataset.action;
+
+        try {
+            let updatePayload = {};
+            if (action === 'progress') {
+                updatePayload = { status_Cham: 'Em andamento' };
+            } else if (action === 'close') {
+                updatePayload = {
+                    status_Cham: 'Fechado',
+                    dataFechamento_Cham: new Date().toISOString().slice(0, 10)
+                };
+            } else {
+                 return; // Ação desconhecida
+            }
+            
+            await apiUpdateChamado(id, updatePayload);
+
+            // Recarrega a lista após a atualização
+            await this.loadChamadosFromDB();
+
+        } catch (error) {
+            alert('Erro ao atualizar chamado: ' + error.message);
+            console.error('Erro ao atualizar chamado:', error);
         }
-
-        // Recarrega a lista após a atualização
-        await loadChamadosFromDB();
-
-    } catch (error) {
-        alert('Erro ao atualizar chamado: ' + error.message);
     }
 }
 
-// ===== FUNÇÕES AUXILIARES =====
-
 /**
- * Converte código de prioridade em texto legível
- * @param {string} prioridade - Código de prioridade (A, M, B)
- * @returns {string} Texto descritivo da prioridade
+ * Função exportada que inicia a view.
+ * *Esta é a única função que precisa ser mantida inalterada no seu nome e exportação
+ * para não quebrar dependências externas.*
  */
-// function getPrioridadeTexto(prioridade) {
-//     const map = {
-//         'A': 'Alta',
-//         'M': 'Média',
-//         'B': 'Baixa'
-//     };
-//     return map[prioridade] || prioridade;
-// }
+export async function renderTodosChamados() {
+    const manager = new ChamadoManager();
+    await manager.init();
+}
 
-/**
- * Formata uma data para o formato brasileiro
- * @param {string} dateString - Data em formato string
- * @returns {string} Data formatada ou 'N/A' se inválida
- */
-// function formatDate(dateString) {
-//     if (!dateString) return 'N/A';
-//     const date = new Date(dateString);
-//     return date.toLocaleDateString('pt-BR');
-// }
-
-/**
- * Gera um badge colorido para o status do chamado
- * @param {string} status - Status do chamado
- * @returns {string} HTML do badge
- */
-// function renderBadge(status) {
-//     const map = {
-//         'aberto': 'open',
-//         'em andamento': 'progress',
-//         'fechado': 'done'
-//     };
-//     const cls = map[status.toLowerCase()] || '';
-//     return '<span class="badge ' + cls + '">' + status + '</span>';
-// }

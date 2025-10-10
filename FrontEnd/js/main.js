@@ -13,7 +13,7 @@ import { iniciarDetalhesIA } from './views/detalhes-IA.js';
 // Constantes de Nível de Acesso
 const NIVEL_ADMIN = 3;
 const NIVEL_SOLUCIONADOR = 2; // Assumindo que o acesso a "Solucionar Chamados" começa no nível 2 (Técnico)
-const NIVEL_CLIENTE = 1;
+
 
 // Mapeamento de Rotas Restritas (Guarda de Rota)
 const ROTA_NIVEL_MINIMO = {
