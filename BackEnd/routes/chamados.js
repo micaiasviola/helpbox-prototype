@@ -6,127 +6,168 @@ const { getPool, sql } = require('../db.js');
 
 const verificarAdm = require('../middlewares/verificarADM.js');
 
-// GET PARA MEUS CHAMADOS (UNIFICADO: Cliente Vê os Abertos, Técnico/Admin Vê os Atribuídos + Abertos)
+/**
+ * Constrói a cláusula WHERE baseada no nível de acesso do usuário.
+ */
+function getDynamicWhereClause(nivelAcesso, fullWhereClause) {
+    let baseWhere = fullWhereClause;
+    
+    // Inicia a cláusula de escopo
+    let scopeClause = "";
+
+    if (nivelAcesso === 1) {
+        // NÍVEL 1 (CLIENTE): Vê APENAS o que abriu.
+        scopeClause = `C.clienteId_Cham = @usuarioId`;
+    } 
+    else if (nivelAcesso === 2) {
+        // NÍVEL 2 (TÉCNICO): Vê o que está resolvendo OU o que ele abriu.
+        scopeClause = `C.tecResponsavel_Cham = @usuarioId OR C.clienteId_Cham = @usuarioId`;
+    }
+    else if (nivelAcesso === 3) {
+        // NÍVEL 3 (ADMINISTRADOR) - FOCO PESSOAL:
+        // Vê APENAS os que ele está resolvendo (como tec) OU os que ele abriu (como cliente).
+        scopeClause = `C.tecResponsavel_Cham = @usuarioId OR C.clienteId_Cham = @usuarioId`;
+    }
+    
+    // Se a cláusula de escopo foi definida (para qualquer nível), aplicamos o filtro pessoal.
+    if (scopeClause) {
+         baseWhere += ` AND (${scopeClause})`;
+    }
+    
+    return baseWhere;
+}
+
+
+// ====================================================================
+// ROTA 1: /meus (TODOS OS NÍVEIS - FOCO PESSOAL)
+// ====================================================================
+
 router.get('/meus', async (req, res) => {
     const usuarioId = req.session?.usuario?.id;
     const nivelAcesso = req.session?.usuario?.nivel_acesso;
 
-    if (!usuarioId) {
-        return res.status(401).json({ error: 'ID do usuário não encontrado na sessão.' });
+    if (!usuarioId) { 
+        return res.status(401).json({ error: 'Usuário não autenticado.' });
     }
-
-    let whereClause;
     
-    // Nível 1: Cliente vê chamados abertos por ele (clienteId_Cham)
-    if (nivelAcesso === 1) {
-        whereClause = `C.clienteId_Cham = @usuarioId`;
-    } 
-    // Nível 3: Administrador (vê o que abriu E o que está solucionando)
-    else if (nivelAcesso === 3) {
-        whereClause = `(C.tecResponsavel_Cham = @usuarioId OR C.clienteId_Cham = @usuarioId) AND C.status_Cham != 'Fechado'`;
+    // Garante que o nível de acesso é válido (1, 2, ou 3)
+    if (nivelAcesso < 1 || nivelAcesso > 3) {
+        return res.status(403).json({ error: 'Nível de acesso inválido para esta rota.' });
     }
-    // Nível 2: Técnico (vê apenas os que ele está solucionando)
-    else if (nivelAcesso === 2) {
-        whereClause = `C.tecResponsavel_Cham = @usuarioId AND C.status_Cham != 'Fechado'`;
-    }
-    else {
-         // Caso o nível de acesso seja inválido, retorna erro
-         return res.status(403).json({ error: 'Nível de acesso inválido para esta rota.' });
-    }
+    
+    // --- PREPARAÇÃO DOS PARÂMETROS ---
+    const page = parseInt(req.query.page) || 1; 
+    const pageSize = parseInt(req.query.pageSize) || 6;
+    const searchTerm = req.query.q || ''; 
+    const statusFilter = req.query.status || ''; 
 
+    const offset = (page - 1) * pageSize; 
+    
+    // Cláusula inicial (1=1 é obrigatória para o WHERE)
+    let fullWhereClause = `1 = 1`; 
+    
+    if (statusFilter) fullWhereClause += ` AND C.status_Cham = @statusFilter`;
+    if (searchTerm) fullWhereClause += ` AND (C.titulo_Cham LIKE @searchTerm OR C.descricao_Cham LIKE @searchTerm)`;
+
+    // 🚨 APLICAÇÃO DO ESCOPO DE SEGURANÇA
+    const scopedWhereClause = getDynamicWhereClause(nivelAcesso, fullWhereClause);
+    
     try {
-        const pool = await getPool();
-        const request = pool.request().input('usuarioId', sql.Int, usuarioId);
-
-        const result = await request.query(`
-            SELECT
-                C.id_Cham, C.status_Cham, C.dataAbertura_Cham, C.titulo_Cham,
-                C.prioridade_Cham, C.categoria_Cham, C.descricao_Cham, C.tecResponsavel_Cham,
-                C.clienteId_Cham,
-                
-                U.nome_User, U.sobrenome_User 
+        const pool = await getPool(); 
+        const request = pool.request()
+            .input('usuarioId', sql.Int, usuarioId)
+            .input('offset', sql.Int, offset)
+            .input('pageSize', sql.Int, pageSize)
+            .input('statusFilter', sql.NVarChar, statusFilter)
+            .input('searchTerm', sql.NVarChar, `%${searchTerm}%`);
+            
+        // 🚨 Query unificada: 
+        const querySQL = `
+            SELECT C.*, U.nome_User, U.sobrenome_User 
             FROM Chamado AS C
             INNER JOIN Usuario AS U ON C.clienteId_Cham = U.id_User
+            WHERE ${scopedWhereClause} 
+            ORDER BY 
+                CASE C.status_Cham WHEN 'Em andamento' THEN 1 WHEN 'Aberto' THEN 2 WHEN 'Fechado' THEN 3 ELSE 9 END ASC,
+                C.dataAbertura_Cham DESC
             
-            -- CLAUSULA DINÂMICA
-            WHERE ${whereClause} 
-            ORDER BY C.dataAbertura_Cham DESC
-        `);
-        
-        res.json(result.recordset);
-        
+            OFFSET @offset ROWS
+            FETCH NEXT @pageSize ROWS ONLY;
+
+            SELECT COUNT(C.id_Cham) AS totalCount 
+            FROM Chamado AS C
+            WHERE ${scopedWhereClause};
+        `;
+
+        const result = await request.query(querySQL);
+
+        res.json({
+            chamados: result.recordsets[0],
+            totalCount: result.recordsets[1][0].totalCount,
+            page: page,
+            pageSize: pageSize
+        });
+
     } catch (error) {
         console.error('Erro ao buscar meus chamados:', error);
         res.status(500).json({ error: 'Erro interno ao buscar meus chamados.' });
     }
 });
 
-// ROTA GET PARA CHAMADOS DO TÉCNICO (Nível 2)
-// ROTA GET PARA CHAMADOS DO TÉCNICO (Nível 2)
+// ====================================================================
+// ROTA 2: /tecnico (FILA GLOBAL DE CHAMADOS LIVRES)
+// ====================================================================
+
+// Rota mantida, mas simplificada, pois ela tem uma função muito específica no fluxo
 router.get('/tecnico', async (req, res) => {
-    // Pega o ID e Nível do usuário da sessão
-    const tecId = req.session?.usuario?.id;
     const nivelAcesso = req.session?.usuario?.nivel_acesso;
 
-    // Garante que o usuário está logado e tem um nível mínimo para acessar esta rota
-    if (!tecId || nivelAcesso < 2) { 
+    if (nivelAcesso < 2) { 
         return res.status(403).json({ error: 'Acesso negado. Necessário nível técnico.' });
     }
 
     try {
         const pool = await getPool();
         const result = await pool.request()
-            .input('tecId', sql.Int, tecId)
             .query(`
-                SELECT
-                    id_Cham, status_Cham, dataAbertura_Cham, titulo_Cham, 
-                    prioridade_Cham, categoria_Cham, descricao_Cham, tecResponsavel_Cham
+                SELECT id_Cham, status_Cham, dataAbertura_Cham, titulo_Cham, 
+                       prioridade_Cham, categoria_Cham, descricao_Cham, tecResponsavel_Cham
                 FROM Chamado
-                WHERE tecResponsavel_Cham = @tecId -- 1. Chamados atribuídos ao técnico logado
-                   OR (
-                         tecResponsavel_Cham IS NULL 
-                         AND status_Cham = 'Em andamento' -- 2. Chamados livres (encaminhados pelo cliente)
-                      )
+                -- MOSTRA APENAS CHAMADOS LIVRES NA FILA GLOBAL PARA ATRIBUIÇÃO
+                WHERE tecResponsavel_Cham IS NULL 
+                  AND status_Cham = 'Em andamento'
                 ORDER BY dataAbertura_Cham DESC
             `);
         
         res.json(result.recordset);
 
     } catch (error) {
-        console.error('Erro ao buscar chamados do técnico:', error);
-        res.status(500).json({ error: 'Erro interno ao buscar chamados do técnico.' });
+        console.error('Erro ao buscar chamados da fila técnica:', error);
+        res.status(500).json({ error: 'Erro interno ao buscar chamados da fila técnica.' });
     }
 });
 
 
+
+// ====================================================================
+// ROTA 3: / (TODOS OS CHAMADOS DO SISTEMA - ADMIN)
+// ====================================================================
+
 router.get('/', verificarAdm, async (req, res) => {
+    // 🚨 Esta rota não tem paginação/busca implementada no seu código original.
+    // Para ser funcional, precisa de paginação. Mantenha a versão anterior que você enviou,
+    // ou adicione a lógica de paginação da rota /meus aqui, se necessário.
+    
     try {
         const pool = await getPool();
         const result = await pool.request().query(`
-            SELECT
-                C.id_Cham,
-                C.status_Cham,
-                C.dataAbertura_Cham,
-                C.titulo_Cham,
-                C.dataFechamento_Cham,
-                C.prioridade_Cham,
-                C.categoria_Cham,
-                C.descricao_Cham,
-                C.solucaoIA_Cham,
-                C.solucaoTec_Cham,
-                C.solucaoFinal_Cham,
-                C.tecResponsavel_Cham,
-                
-                -- 🛠️ NOVO: NOME DO TÉCNICO RESPONSÁVEL
-                U_TECNICO.nome_User AS tecNome,
-                U_TECNICO.sobrenome_User AS tecSobrenome
-                
+            SELECT C.*, U_TECNICO.nome_User AS tecNome, U_TECNICO.sobrenome_User AS tecSobrenome
             FROM Chamado AS C
-            -- Junção para o nome do Técnico (LEFT JOIN porque pode ser NULL)
             LEFT JOIN Usuario AS U_TECNICO ON C.tecResponsavel_Cham = U_TECNICO.id_User
-            
-            ORDER BY C.dataAbertura_Cham`
-        );
+            ORDER BY 
+                CASE C.status_Cham WHEN 'Em andamento' THEN 1 WHEN 'Aberto' THEN 2 WHEN 'Fechado' THEN 3 ELSE 9 END ASC,
+                C.dataAbertura_Cham DESC
+        `);
         res.json(result.recordset);
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -135,7 +176,7 @@ router.get('/', verificarAdm, async (req, res) => {
 
 // GET para buscar chamados via ID
 router.get('/:id', async (req, res) => {
-    const { id } = req.params; 
+    const { id } = req.params;
     const chamadoId = parseInt(id);
 
     if (isNaN(chamadoId)) {
@@ -179,7 +220,7 @@ router.get('/:id', async (req, res) => {
                 
                 WHERE C.id_Cham = @idChamado
             `);
-        
+
         if (result.recordset.length === 0) {
             return res.status(404).json({ error: 'Chamado não encontrado.' });
         }
@@ -269,7 +310,7 @@ router.put('/:id', async (req, res) => {
     try {
         const { id } = req.params;
         // 🚨 CORREÇÃO: Extrair tecResponsavel_Cham do corpo da requisição
-        const { status_Cham, dataFechamento_Cham, tecResponsavel_Cham } = req.body; 
+        const { status_Cham, dataFechamento_Cham, tecResponsavel_Cham } = req.body;
 
         const pool = await getPool();
         let query = 'UPDATE Chamado SET ';
@@ -295,24 +336,24 @@ router.put('/:id', async (req, res) => {
         // Este campo é crucial para a atribuição!
         if (typeof tecResponsavel_Cham !== 'undefined') {
             if (needsComma) query += ', ';
-            
+
             // Se o valor for NULL, o tipo deve ser null
             const isNull = tecResponsavel_Cham === null || tecResponsavel_Cham === 'null';
 
             query += 'tecResponsavel_Cham = @tecResponsavel';
-            
-            inputs.push({ 
-                name: 'tecResponsavel', 
+
+            inputs.push({
+                name: 'tecResponsavel',
                 // Se for null, insere null, senão, insere o ID como Int
-                value: isNull ? null : parseInt(tecResponsavel_Cham), 
-                type: sql.Int 
+                value: isNull ? null : parseInt(tecResponsavel_Cham),
+                type: sql.Int
             });
             needsComma = true;
         }
-        
+
         // Se nenhum campo válido foi enviado, evita erro SQL
         if (inputs.length === 0) {
-             return res.status(400).json({ error: 'Nenhum campo de atualização válido fornecido.' });
+            return res.status(400).json({ error: 'Nenhum campo de atualização válido fornecido.' });
         }
 
         // Finaliza a query
@@ -336,14 +377,14 @@ router.put('/escalar/:id', async (req, res) => {
     try {
         const { id } = req.params;
         const { status_Cham, prioridade_Cham } = req.body; // Recebe o novo status e prioridade
-        
+
         // Garante que o ID e o status estejam presentes
         if (!id || !status_Cham) {
             return res.status(400).json({ error: 'ID e novo status são obrigatórios.' });
         }
 
         const pool = await getPool();
-        
+
         // Apenas atualiza o status, a prioridade, e remove o técnico responsável (se houver)
         const query = `
             UPDATE Chamado 
