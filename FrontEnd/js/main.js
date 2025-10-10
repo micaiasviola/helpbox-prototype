@@ -9,7 +9,8 @@ import { renderMeusChamados } from './views/meus-chamados.js';
 import { renderUsuarios } from './views/usuarios.js';
 import { renderConfig } from './views/config.js';
 import { store } from './store.js';
-import { iniciarDetalhesIA } from './views/detalhes-IA.js'; 
+import { iniciarDetalhesIA } from './views/detalhes-IA.js';
+import { iniciarSolucao } from './views/solucionar-chamado-detalhe.js';
 // Constantes de Nível de Acesso
 const NIVEL_ADMIN = 3;
 const NIVEL_SOLUCIONADOR = 2; // Assumindo que o acesso a "Solucionar Chamados" começa no nível 2 (Técnico)
@@ -18,9 +19,9 @@ const NIVEL_SOLUCIONADOR = 2; // Assumindo que o acesso a "Solucionar Chamados" 
 // Mapeamento de Rotas Restritas (Guarda de Rota)
 const ROTA_NIVEL_MINIMO = {
     // Rota /todos (Solucionar Chamados) - Acesso bloqueado para Nível 1
-    todos: NIVEL_SOLUCIONADOR, 
+    todos: NIVEL_SOLUCIONADOR,
     // Rota /usuarios (Gerenciar Usuários) - Acesso bloqueado para Nível 1 e 2
-    usuarios: NIVEL_ADMIN 
+    usuarios: NIVEL_ADMIN
 };
 
 // Configuração inicial (Mantida no topo)
@@ -29,13 +30,14 @@ yearEl.textContent = YEAR;
 
 // Sistema de rotas (Mantido no formato original)
 const routes = {
-    'pagina-inicial': renderDashboard, 
+    'pagina-inicial': renderDashboard,
     dashboard: renderDashboard,
     abrir: renderAbrirChamado,
     chamados: renderMeusChamados,
     todos: renderTodosChamados,
     usuarios: renderUsuarios,
-    config: renderConfig
+    config: renderConfig,
+    solucao: iniciarSolucao
 };
 
 // =================================================================
@@ -65,13 +67,14 @@ function renderAccessDenied(hashTentado) {
  * Função principal de navegação e Guarda de Rota (Route Guard).
  */
 function navigate() {
-    const fullHash = location.hash.replace('#/', '') || 'pagina-inicial'; 
-    
-    // 2. 🚨 NOVO: Extrai apenas a parte principal da rota (ex: 'chamados' de 'chamados/detalhe/42')
+    const fullHash = location.hash.replace('#/', '') || 'pagina-inicial';
+
+
     const hashParts = fullHash.split('/');
-    const hash = hashParts[0];
+    const hash = hashParts[0]; // Ex: 'solucao'
+    const idParam = hashParts[1]; // Ex: '42' (o ID do chamado)
     // Pega o objeto do usuário (GARANTIDO de estar carregado pela initializeApp)
-    const usuario = store.usuarioLogado; 
+    const usuario = store.usuarioLogado;
 
     // 1. GUARDA DE ROTA: Checagem de Acesso
     const nivelNecessario = ROTA_NIVEL_MINIMO[hash];
@@ -95,7 +98,11 @@ function navigate() {
     const fn = routes[hash] || renderNotFound;
     const view = document.getElementById('view');
     view.innerHTML = '';
-    fn();
+    if (fn === iniciarSolucao || fn === iniciarDetalhesIA) { // Adicione outras funções de detalhe aqui
+        fn(idParam);
+    } else {
+        fn();
+    }
 }
 
 
@@ -108,17 +115,17 @@ function navigate() {
  */
 function controlarAcessoMenu(usuarioLogado) {
     if (!usuarioLogado) return;
-    
+
     // Mantendo a verificação original do nome da variável
-    const nivelDoUsuario = usuarioLogado.nivel_acesso; 
+    const nivelDoUsuario = usuarioLogado.nivel_acesso;
 
     const linksRestritos = [
         // Rota 'todos' (Solucionar Chamados)
-        { route: 'todos', nivelMinimo: NIVEL_SOLUCIONADOR, id: 'menuSolucionarChamados' }, 
+        { route: 'todos', nivelMinimo: NIVEL_SOLUCIONADOR, id: 'menuSolucionarChamados' },
         // Rota 'usuarios' (Gerenciar Usuários)
-        { route: 'usuarios', nivelMinimo: NIVEL_ADMIN, id: 'menuGerenciarUsuarios' }, 
+        { route: 'usuarios', nivelMinimo: NIVEL_ADMIN, id: 'menuGerenciarUsuarios' },
 
-        {route: 'dashboard', nivelMinimo: NIVEL_ADMIN, id: 'menuDashboard'}
+        { route: 'dashboard', nivelMinimo: NIVEL_ADMIN, id: 'menuDashboard' }
     ];
 
     linksRestritos.forEach(item => {
@@ -161,7 +168,7 @@ async function fazerLogout() {
         });
 
         console.log("Sessão encerrada com sucesso.");
-        store.usuarioLogado = null; 
+        store.usuarioLogado = null;
         window.location.href = '/login/login_teste.html';
 
     } catch (error) {
@@ -185,27 +192,27 @@ async function atualizarMetaUsuario() {
     if (userData) {
         // Armazena no store antes de qualquer chamada a navigate()
         store.usuarioLogado = userData;
-        
+
         // Atualiza a interface do usuário
         userMetaDiv.innerHTML = `
             <strong>Olá, ${userData.nome || userData.email}</strong>
             <small>${userData.cargo || 'Nível ' + userData.nivel_acesso} </small>
         `;
-        
+
         // Controla a visibilidade do menu
-        controlarAcessoMenu(userData); 
-        
+        controlarAcessoMenu(userData);
+
     } else {
         // Usuário não logado
         userMetaDiv.innerHTML = `<strong>Faça login</strong>`;
-        
+
         // Redireciona para login
         if (!window.location.pathname.includes('login')) {
-             window.location.href = '/login/login_teste.html';
-             return; // Para não tentar navegar sem autenticação
+            window.location.href = '/login/login_teste.html';
+            return; // Para não tentar navegar sem autenticação
         }
     }
-    
+
     // *** SOLUÇÃO DO BUG: A navegação é iniciada AQUI, após store.usuario estar definido. ***
     navigate();
 }
@@ -225,9 +232,9 @@ document.addEventListener('DOMContentLoaded', () => {
     if (logoutButton) {
         logoutButton.addEventListener('click', fazerLogout);
     }
-    
+
     // 1. Inicia o fluxo de autenticação e carregamento de dados
-    atualizarMetaUsuario(); 
+    atualizarMetaUsuario();
 
     // 2. Aplica a cor de destaque inicial
     applyAccent(store.preferencias.accent);

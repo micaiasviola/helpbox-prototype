@@ -114,6 +114,32 @@ export async function apiGetMeusChamados(clienteId) {
     }
 }
 
+export async function apiGetChamadosTecnico() {
+    try {
+        // Nova rota específica para o Técnico
+        const response = await fetch(`${API_BASE}/chamados/tecnico`, {
+            credentials: 'include'
+        });
+        
+        if (response.ok) {
+            return await response.json();
+        }
+        
+        let errorData = {};
+        try {
+            errorData = await response.json();
+        } catch (e) {
+            errorData.error = `Erro HTTP ${response.status}: ${response.statusText}`;
+        }
+        
+        throw new Error(errorData.error || 'Erro ao buscar chamados do técnico.');
+        
+    } catch (error) {
+        console.error('Erro API (Chamados Técnico):', error);
+        throw error;
+    }
+}
+
 /**
  * Encaminha um chamado do status aberto (ia) para em andamento (tecnico)
  * @param {number} id O ID do chamado.

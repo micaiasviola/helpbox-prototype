@@ -1,14 +1,20 @@
 import { apiGetMeusChamados } from '../api/chamados.js';
+import { store } from '../store.js'; 
+import { iniciarSolucao } from './solucionar-chamado-detalhe.js';
 
+const NIVEL_TECNICO = 2; 
 /**
  * Classe responsável por exibir, filtrar e buscar os chamados de um cliente específico.
  */
 class MeusChamadosView {
     constructor(containerId = 'view') {
         this.container = document.getElementById(containerId);
-        this.chamados = [];       // Armazena todos os chamados carregados
+        this.chamados = [];      
         this.filtroStatus = '';
         this.termoBusca = '';
+        // 🚨 NOVO: ID e Nível do usuário logado
+        this.usuarioLogadoId = store.usuarioLogado?.id || null;
+        this.nivelAcesso = store.usuarioLogado?.nivel_acesso || 0;
     }
 
     /**
@@ -128,6 +134,32 @@ class MeusChamadosView {
         this.renderTable(chamadosFiltrados);
     }
 
+    getActionButton(chamadoId, status) {
+        const statusLower = status.toLowerCase();
+        
+        // Se for Técnico/Admin (Nível 2 ou 3)
+        if (this.nivelAcesso >= NIVEL_TECNICO) {
+            
+            // O Técnico/Admin só vê chamados atribuídos a ele em /meus (conforme rota /meus)
+            // O botão deve ser "Continuar Solucionando"
+            if (statusLower !== 'fechado') {
+                return `
+                    <button class="btn btn-primary btn-sm" onclick="iniciarSolucao(${chamadoId})">
+                        Continuar Solucionando
+                    </button>
+                `;
+            }
+        }
+
+        // Se for Cliente (Nível 1) ou se o chamado estiver fechado para Técnicos
+        // Cliente sempre vê a tela de detalhes dele.
+        return `
+            <button class="btn btn-primary btn-sm" onclick="detalharChamadoIA(${chamadoId})">
+                Ver Solução
+            </button>
+        `;
+    }
+    
     /**
      * Preenche o corpo da tabela com os dados.
      * @param {Array<Object>} data Os chamados filtrados.
@@ -137,31 +169,35 @@ class MeusChamadosView {
         if (!tbody) return;
 
         tbody.innerHTML = data.map(chamado => {
-            
-            // 🚨 NOVO: Combina o nome e sobrenome
             const nomeCompleto = `${chamado.nome_User || ''} ${chamado.sobrenome_User || ''}`.trim();
             
+            // 🚨 NOVO: Chamada ao método que decide qual botão mostrar
+            const actionButton = this.getActionButton(chamado.id_Cham, chamado.status_Cham);
+
             return `
-                <tr>
-                    <td>${chamado.id_Cham}</td>
-                    <td>${nomeCompleto || chamado.clienteId_Cham}</td> <td>${chamado.titulo_Cham || chamado.descricao_Cham.substring(0, 50) + '...'}</td>
-                    <td>${chamado.status_Cham}</td>
-                    <td>${chamado.prioridade_Cham}</td>
-                    <td>${chamado.categoria_Cham}</td>
-                    <td>${new Date(chamado.dataAbertura_Cham).toLocaleDateString()}</td>
-                    <td> <button class="btn btn-primary btn-sm" onclick="detalharChamadoIA(${chamado.id_Cham})">
-                            Ver Solução
-                        </button></td>
-                </tr>
-            `;
+                 <tr>
+                     <td>${chamado.id_Cham}</td>
+                     <td>${nomeCompleto || chamado.clienteId_Cham}</td> 
+                     <td>${chamado.titulo_Cham || chamado.descricao_Cham.substring(0, 50) + '...'}</td>
+                     <td>${chamado.status_Cham}</td>
+                     <td>${chamado.prioridade_Cham}</td>
+                     <td>${chamado.categoria_Cham}</td>
+                     <td>${new Date(chamado.dataAbertura_Cham).toLocaleDateString()}</td>
+                     <td>
+                        ${actionButton}
+                     </td>
+                 </tr>
+             `;
         }).join('');
         
         // Se a busca/filtro não retornar resultados
         if (data.length === 0) {
-             tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;">Nenhum chamado encontrado com os filtros atuais.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;">Nenhum chamado encontrado com os filtros atuais.</td></tr>';
         }
     }
 }
+
+window.iniciarSolucao = iniciarSolucao; 
 
 // Função de ponto de entrada (para compatibilidade com o sistema)
 export function renderMeusChamados() {

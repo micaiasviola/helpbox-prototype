@@ -103,6 +103,7 @@ router.get('/me', verificaSessao, (req, res) => {
     const usuario = req.session.usuario;
 
     res.json({
+        id: usuario.id,
         nome: usuario.nome || 'Usuário',
         sobrenome: usuario.sobrenome || 'Não Definido',
         cargo: usuario.cargo || 'Não Definido',
