@@ -114,7 +114,7 @@ export class SolucionarChamadoView {
                  status_Cham: 'Fechado',
                  solucaoTec_Cham: solucao,
                  solucaoFinal_Cham: solucao, // Usa a mesma solução como final
-                 dataFechamento_Cham: new Date().toISOString().slice(0, 10)
+                 dataFechamento_Cham: new Date().toISOString()
             });
             alertDiv.innerHTML = '<div class="card success">✅ Chamado finalizado com sucesso! Redirecionando...</div>';
             setTimeout(() => { this.voltarParaChamados(); }, 2000);

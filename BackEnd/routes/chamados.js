@@ -306,54 +306,56 @@ router.post('/', async (req, res) => {
 
 
 // PUT atualizar chamado (Rota corrigida para atribuição do técnico)
+// PUT atualizar chamado (Rota CORRIGIDA E COMPLETA)
 router.put('/:id', async (req, res) => {
     try {
         const { id } = req.params;
-        // 🚨 CORREÇÃO: Extrair tecResponsavel_Cham do corpo da requisição
-        const { status_Cham, dataFechamento_Cham, tecResponsavel_Cham } = req.body;
+        const { 
+            status_Cham, 
+            dataFechamento_Cham, 
+            tecResponsavel_Cham,
+            // 🚨 CAMPOS DE SOLUÇÃO E DADOS DE FECHAMENTO ADICIONADOS
+            solucaoTec_Cham, 
+            solucaoFinal_Cham
+        } = req.body; 
 
         const pool = await getPool();
         let query = 'UPDATE Chamado SET ';
         const inputs = [];
         let needsComma = false;
 
+        // Função auxiliar para adicionar campos ao SQL
+        const addField = (name, value, type) => {
+            // Verifica se o valor é passado ou se é para ser explicitamente NULL (para tecResponsavel_Cham)
+            if (typeof value !== 'undefined') {
+                if (needsComma) query += ', ';
+                query += `${name} = @${name}`;
+                inputs.push({ name, value, type });
+                needsComma = true;
+            }
+        };
+
         // 1. Atualizar STATUS
-        if (status_Cham) {
-            query += 'status_Cham = @status';
-            inputs.push({ name: 'status', value: status_Cham, type: sql.VarChar(20) });
-            needsComma = true;
-        }
-
-        // 2. Atualizar DATA DE FECHAMENTO
-        if (dataFechamento_Cham) {
-            if (needsComma) query += ', ';
-            query += 'dataFechamento_Cham = @dataFechamento';
-            inputs.push({ name: 'dataFechamento', value: dataFechamento_Cham, type: sql.Date });
-            needsComma = true;
-        }
-
-        // 3. 🛠️ NOVO: Atualizar TÉCNICO RESPONSÁVEL (Para a ação 'take')
-        // Este campo é crucial para a atribuição!
+        addField('status_Cham', status_Cham, sql.VarChar(20));
+        
+        // 2. Atualizar TÉCNICO (usando lógica anterior)
         if (typeof tecResponsavel_Cham !== 'undefined') {
-            if (needsComma) query += ', ';
-
-            // Se o valor for NULL, o tipo deve ser null
             const isNull = tecResponsavel_Cham === null || tecResponsavel_Cham === 'null';
-
-            query += 'tecResponsavel_Cham = @tecResponsavel';
-
-            inputs.push({
-                name: 'tecResponsavel',
-                // Se for null, insere null, senão, insere o ID como Int
-                value: isNull ? null : parseInt(tecResponsavel_Cham),
-                type: sql.Int
-            });
-            needsComma = true;
+            addField('tecResponsavel_Cham', isNull ? null : parseInt(tecResponsavel_Cham), sql.Int);
         }
 
-        // Se nenhum campo válido foi enviado, evita erro SQL
+        // 3. 🛠️ Adicionar SOLUÇÕES (Usado no "Salvar Rascunho" e "Finalizar")
+        // O tipo VarChar(1000) deve corresponder ao seu esquema
+        addField('solucaoTec_Cham', solucaoTec_Cham, sql.VarChar(1000));
+        addField('solucaoFinal_Cham', solucaoFinal_Cham, sql.VarChar(1000));
+
+        // 4. Adicionar DATA DE FECHAMENTO (Usado no "Finalizar")
+        // Usamos sql.DateTime ou sql.Date dependendo do seu esquema (DateTime é mais comum)
+        addField('dataFechamento_Cham', dataFechamento_Cham, sql.DateTime); 
+        
+        // Se nenhum campo válido foi enviado
         if (inputs.length === 0) {
-            return res.status(400).json({ error: 'Nenhum campo de atualização válido fornecido.' });
+             return res.status(400).json({ error: 'Nenhum campo de atualização válido fornecido.' });
         }
 
         // Finaliza a query
@@ -365,10 +367,11 @@ router.put('/:id', async (req, res) => {
 
         await request.query(query);
 
-        res.json({ success: true, message: 'Chamado atualizado com sucesso (incluindo atribuição do técnico).' });
+        res.json({ success: true, message: 'Chamado atualizado com sucesso.' });
     } catch (error) {
-        console.error('Erro ao atualizar chamado:', error);
-        res.status(500).json({ error: error.message });
+        // 🚨 MUITO IMPORTANTE: Logar o erro REAL do SQL Server
+        console.error('Erro ao executar UPDATE SQL:', error);
+        res.status(500).json({ error: 'Erro interno do servidor ao fechar o chamado.' });
     }
 });
 
