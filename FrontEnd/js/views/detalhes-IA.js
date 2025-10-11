@@ -34,7 +34,7 @@ export class DetalhesIAView {
 
     getTemplate(chamado) {
         const dataAbertura = new Date(chamado.dataAbertura_Cham).toLocaleDateString();
-        const nomeCliente = `${store.usuarios.nome || 'Cliente'}`; // Exibe o nome do usuário logado
+        const nomeCliente = chamado.clienteNome ? `${chamado.clienteNome} ${chamado.clienteSobrenome}` : 'Cliente Não Informado';
 
 
         return `<div class="card">
