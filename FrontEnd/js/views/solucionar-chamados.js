@@ -67,8 +67,7 @@ class ChamadoManager {
                 <thead>
                     <tr>
                         <th>ID Chamado</th>
-                        <th>ID Tecnico</th>
-                        <th>Descrição</th>
+                        <th>Responsável</th> <th>Descrição</th>
                         <th>Status</th>
                         <th>Prioridade</th>
                         <th>Categoria</th>
@@ -260,44 +259,38 @@ class ChamadoManager {
 
         const id = +btn.dataset.id;
         const action = btn.dataset.action;
+        let updatePayload = {};
 
         try {
-            let updatePayload = {};
-
             if (action === 'take') {
-                // 1. O técnico assume o chamado (atribuição)
+                // Prepara o payload para ATRIBUIÇÃO (Tecnico = logado, Status = Em andamento)
                 updatePayload = { 
                     status_Cham: STATUS_EM_ANDAMENTO,
                     tecResponsavel_Cham: this.usuarioLogadoId 
                 };
                 
-                // Realiza a atribuição ANTES de navegar
                 await apiUpdateChamado(id, updatePayload);
                 alert(`Chamado ${id} atribuído a você!`); 
-                
-                // 🚨 NOVO: Navega para a tela de solução após a atribuição
-                iniciarSolucao(id);
-                
-                // Não precisa recarregar a lista se estamos navegando
+                iniciarSolucao(id); // Navega para a tela de solução
                 return; 
 
             } else if (action === 'continue') {
-                // 2. O chamado já é dele -> Apenas navega
+                // Navega para a tela de solução (o chamado já está atribuído)
                 iniciarSolucao(id);
                 return; 
                 
             } else if (action === 'close') {
-                // ... (lógica de fechar, mantém o reload da lista)
+                // Prepara o payload para FINALIZAÇÃO
                 updatePayload = {
-                     status_Cham: 'Fechado',
-                     dataFechamento_Cham: new Date().toISOString().slice(0, 10)
+                    status_Cham: 'Fechado',
+                    dataFechamento_Cham: new Date().toISOString().slice(0, 10)
                 };
                 await apiUpdateChamado(id, updatePayload);
             } else {
                  return;
             }
             
-            // Recarrega a lista após a atualização (apenas para 'close')
+            // Recarrega a lista após o close/finalização
             await this.loadChamadosFromDB();
 
         } catch (error) {

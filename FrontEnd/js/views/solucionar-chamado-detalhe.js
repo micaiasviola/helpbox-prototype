@@ -1,6 +1,49 @@
 import { apiGetChamadoById, apiUpdateChamado } from "../api/chamados.js";
 import { store } from "../store.js";
 
+
+function getSolucaoTemplate(chamado) {
+    const dataAbertura = new Date(chamado.dataAbertura_Cham).toLocaleDateString();
+    
+    // 🚨 MELHORIA: Usa o nome do autor que veio da API
+    const nomeCliente = (chamado.clienteNome || 'Cliente') + ' ' + (chamado.clienteSobrenome || '');
+    const nomeAbertoPor = nomeCliente.trim();
+    
+    return `<div class="card">
+        <div class="actions" style="margin-bottom: 20px;">
+            <button id="btnVoltar" class="btn btn-secondary">
+                ← Voltar para Solucionar Chamados
+            </button>
+        </div>
+        <h2>Solucionar Chamado #${chamado.id_Cham}</h2>
+        
+        <p><strong>Status:</strong> <span class="badge ${chamado.status_Cham.toLowerCase()}">${chamado.status_Cham}</span></p>
+        <p><strong>Aberto por:</strong> ${nomeAbertoPor}</p>
+        <p><strong>Assunto:</strong> ${chamado.titulo_Cham}</p>
+        <p><strong>Categoria:</strong> ${chamado.categoria_Cham}</p>
+        <p><strong>Data de Abertura:</strong> ${dataAbertura}</p>
+        <p><strong>Descrição:</strong> ${chamado.descricao_Cham}</p>
+        <hr/>
+
+        <h3>Resposta da IA (Encaminhada pelo Cliente)</h3>
+        <div class="ia-box" style="padding: 15px; border: 1px solid #ddd; background-color: #f9f9f9;">
+            <p>${chamado.solucaoIA_Cham || "Nenhuma resposta da IA registrada."}</p>
+        </div>
+        
+        <hr/>
+        
+        <h3>🛠️ Solução do Técnico</h3>
+        <div id="alertSolucao" style="margin-bottom: 15px;"></div>
+        <textarea id="solucaoTecnico" class="input" rows="6" 
+            placeholder="Descreva a solução aplicada (obrigatório para fechar o chamado)">${chamado.solucaoTec_Cham || ''}</textarea>
+        
+        <div class="actions" style="margin-top: 20px;">
+            <button id="btnSalvarSolucao" class="btn btn-success">💾 Salvar Rascunho</button>
+            <button id="btnFinalizar" class="btn btn-danger">✓ Finalizar Chamado</button>
+        </div>
+    </div>`;
+}
+
 /** Classe responsável por exibir os detalhes do chamado para o Técnico/Admin e permitir a solução.
  */
 export class SolucionarChamadoView {
@@ -27,7 +70,7 @@ export class SolucionarChamadoView {
                  return;
             }
 
-            this.container.innerHTML = this.getTemplate(chamado);
+            this.container.innerHTML = getSolucaoTemplate(chamado);
             this.attachListeners(chamado.id_Cham);
 
         } catch (error) {
@@ -36,47 +79,6 @@ export class SolucionarChamadoView {
         }
     }
 
-    /** Retorna o template HTML com os detalhes e a área de solução. */
-    getTemplate(chamado) {
-        const dataAbertura = new Date(chamado.dataAbertura_Cham).toLocaleDateString();
-        // Assume que o backend retorna nomeCliente
-        const nomeCliente = chamado.clienteNome ? `${chamado.clienteNome} ${chamado.clienteSobrenome}` : 'Cliente Não Informado';
-
-        return `<div class="card">
-                <div class="actions" style="margin-bottom: 20px;">
-                    <button id="btnVoltar" class="btn btn-secondary">
-                        ← Voltar para Solucionar Chamados
-                    </button>
-                </div>
-                <h2>Solucionar Chamado #${chamado.id_Cham}</h2>
-                
-                <p><strong>Status:</strong> <span class="badge ${chamado.status_Cham.toLowerCase()}">${chamado.status_Cham}</span></p>
-                <p><strong>Aberto por:</strong> ${nomeCliente}</p>
-                <p><strong>Assunto:</strong> ${chamado.titulo_Cham}</p>
-                <p><strong>Categoria:</strong> ${chamado.categoria_Cham}</p>
-                <p><strong>Data de Abertura:</strong> ${dataAbertura}</p>
-                <p><strong>Descrição:</strong> ${chamado.descricao_Cham}</p>
-                <hr/>
-
-                <h3>Resposta da IA (Encaminhada pelo Cliente)</h3>
-                <div class="ia-box" style="padding: 15px; border: 1px solid #ddd; background-color: #f9f9f9;">
-                    <p>${chamado.solucaoIA_Cham || "Nenhuma resposta da IA registrada."}</p>
-                </div>
-                
-                <hr/>
-                
-                <h3>🛠️ Solução do Técnico</h3>
-                <div id="alertSolucao" style="margin-bottom: 15px;"></div>
-                <textarea id="solucaoTecnico" class="input" rows="6" 
-                    placeholder="Descreva a solução aplicada (obrigatório para fechar o chamado)">${chamado.solucaoTec_Cham || ''}</textarea>
-                
-                <div class="actions" style="margin-top: 20px;">
-                    <button id="btnSalvarSolucao" class="btn btn-success">💾 Salvar Rascunho</button>
-                    <button id="btnFinalizar" class="btn btn-danger">✓ Finalizar Chamado</button>
-                </div>
-            </div>
-            `;
-    }
 
     /** Anexa listeners para os botões de ação do técnico. */
     attachListeners(id) {
