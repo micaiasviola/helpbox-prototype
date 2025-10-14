@@ -306,7 +306,7 @@ router.post('/', async (req, res) => {
 
 
 // PUT atualizar chamado (Rota corrigida para atribuição do técnico)
-// PUT atualizar chamado (Rota CORRIGIDA E COMPLETA)
+
 router.put('/:id', async (req, res) => {
     try {
         const { id } = req.params;

@@ -6,9 +6,23 @@ import { store } from "../store.js";
 function getClienteDetalheTemplate(chamado) {
     const dataAbertura = new Date(chamado.dataAbertura_Cham).toLocaleDateString();
 
-    // 🚨 MELHORIA: Usa o nome do autor que veio da API
     const nomeCliente = (chamado.clienteNome || 'Cliente') + ' ' + (chamado.clienteSobrenome || '');
     const nomeAbertoPor = nomeCliente.trim();
+
+    // 🚨 NOVO: Se a solução do técnico existir, construímos o bloco HTML para exibição.
+    const solucaoTecnicoBlock = chamado.solucaoTec_Cham 
+        ? `
+        <hr/>
+        <h3>Resposta da Equipe Técnica</h3>
+        <div class="tec-box" style="padding: 15px; border: 1px solid #007bff; background-color: #e6f7ff; margin-bottom: 20px;">
+            <p><strong>Status:</strong> O problema foi analisado pela equipe técnica.</p>
+            <p id="tecResponseText">
+                ${chamado.solucaoTec_Cham}
+            </p>
+        </div>
+        ` 
+        : ''; // Se não houver solução, a string fica vazia.
+
 
     return `<div class="card">
         <div class="actions" style="margin-bottom: 20px;">
@@ -31,6 +45,8 @@ function getClienteDetalheTemplate(chamado) {
                 ${chamado.solucaoIA_Cham || "Aguardando resposta da IA..."}
             </p>
         </div>
+        
+        ${solucaoTecnicoBlock}
         
         <hr/>
         

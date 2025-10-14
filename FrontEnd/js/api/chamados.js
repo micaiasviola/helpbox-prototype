@@ -87,7 +87,7 @@ export async function apiCreateChamado(dados) {
  * Busca os chamados do cliente logado pelo ID (ou confia na session/cookie)
  * @param {number} clienteId O ID do cliente logado.
  */
-export async function apiGetMeusChamados(page = 1, pageSize = 6, q = '', status = '') { 
+export async function apiGetMeusChamados(page = 1, pageSize = 5, q = '', status = '') { 
     try {
         let url = `${API_BASE}/chamados/meus?page=${page}&pageSize=${pageSize}`;
         

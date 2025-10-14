@@ -4,7 +4,7 @@ import { iniciarSolucao } from './solucionar-chamado-detalhe.js';
 
 // Constantes de Nível de Acesso e Paginação
 const NIVEL_TECNICO = 2;
-const DEFAULT_PAGE_SIZE = 6;
+const DEFAULT_PAGE_SIZE = 5;
 
 /**
  * Classe responsável por exibir, filtrar e buscar os chamados de um cliente específico.
