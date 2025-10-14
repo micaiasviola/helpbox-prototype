@@ -40,10 +40,6 @@ class AbrirChamadoView {
                         <label class="label"> Quando começou o problema? <span style="color:red" >* </span> </label>
                         <input type="date" id="data" name="data">
                     </div>
-                    <div>
-                        <label class="label">Anexo</label>
-                        <input class="input" name="anexo" type="file"/>
-                    </div>
                 </div>
                 <div id="demanda">
                     <label class="label"> Qual o impacto na demanda? <span style="color:red" >* </span> </label>
