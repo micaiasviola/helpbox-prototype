@@ -169,7 +169,7 @@ async function fazerLogout() {
 
         console.log("Sessão encerrada com sucesso.");
         store.usuarioLogado = null;
-        window.location.href = '/login/login_teste.html';
+        window.location.href = '/login/tela_login.html';
 
     } catch (error) {
         console.error('Erro de rede ao fazer logout:', error);
@@ -208,7 +208,7 @@ async function atualizarMetaUsuario() {
 
         // Redireciona para login
         if (!window.location.pathname.includes('login')) {
-            window.location.href = '/login/login_teste.html';
+            window.location.href = '/login/tela_login.html';
             return; // Para não tentar navegar sem autenticação
         }
     }
