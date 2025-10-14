@@ -118,28 +118,55 @@ router.get('/meus', async (req, res) => {
 // ROTA 2: /tecnico (FILA GLOBAL DE CHAMADOS LIVRES)
 // ====================================================================
 
-// Rota mantida, mas simplificada, pois ela tem uma função muito específica no fluxo
 router.get('/tecnico', async (req, res) => {
     const nivelAcesso = req.session?.usuario?.nivel_acesso;
 
     if (nivelAcesso < 2) { 
         return res.status(403).json({ error: 'Acesso negado. Necessário nível técnico.' });
     }
+    
+    // Parâmetros de Paginação
+    const page = parseInt(req.query.page) || 1; 
+    const pageSize = parseInt(req.query.pageSize) || 5; 
+    const offset = (page - 1) * pageSize; 
+    
+    // Cláusula de filtro (estrita para chamados livres)
+    const baseWhereClause = `tecResponsavel_Cham IS NULL AND status_Cham = 'Em andamento'`;
+
+    const orderByClause = `ORDER BY dataAbertura_Cham DESC`;
 
     try {
         const pool = await getPool();
-        const result = await pool.request()
-            .query(`
-                SELECT id_Cham, status_Cham, dataAbertura_Cham, titulo_Cham, 
-                       prioridade_Cham, categoria_Cham, descricao_Cham, tecResponsavel_Cham
-                FROM Chamado
-                -- MOSTRA APENAS CHAMADOS LIVRES NA FILA GLOBAL PARA ATRIBUIÇÃO
-                WHERE tecResponsavel_Cham IS NULL 
-                  AND status_Cham = 'Em andamento'
-                ORDER BY dataAbertura_Cham DESC
-            `);
+        const request = pool.request()
+            .input('offset', sql.Int, offset)
+            .input('pageSize', sql.Int, pageSize);
+
+        // 1. SELECT dos dados paginados
+        const paginatedQuery = `
+            SELECT id_Cham, status_Cham, dataAbertura_Cham, titulo_Cham, 
+                   prioridade_Cham, categoria_Cham, descricao_Cham, tecResponsavel_Cham
+            FROM Chamado
+            WHERE ${baseWhereClause}
+            ${orderByClause}
+            OFFSET @offset ROWS
+            FETCH NEXT @pageSize ROWS ONLY;
+        `;
         
-        res.json(result.recordset);
+        // 2. SELECT do total de registros
+        const countQuery = `
+            SELECT COUNT(id_Cham) AS totalCount 
+            FROM Chamado
+            WHERE ${baseWhereClause};
+        `;
+
+        const result = await request.query(paginatedQuery + countQuery);
+
+        res.json({
+            chamados: result.recordsets[0],
+            totalCount: result.recordsets[1][0].totalCount,
+            page: page,
+            pageSize: pageSize
+        });
 
     } catch (error) {
         console.error('Erro ao buscar chamados da fila técnica:', error);
@@ -154,23 +181,62 @@ router.get('/tecnico', async (req, res) => {
 // ====================================================================
 
 router.get('/', verificarAdm, async (req, res) => {
-    // 🚨 Esta rota não tem paginação/busca implementada no seu código original.
-    // Para ser funcional, precisa de paginação. Mantenha a versão anterior que você enviou,
-    // ou adicione a lógica de paginação da rota /meus aqui, se necessário.
-    
+    // Parâmetros de Paginação e Filtro
+    const page = parseInt(req.query.page) || 1; 
+    const pageSize = parseInt(req.query.pageSize) || 5; // Usa 5 por padrão
+    const searchTerm = req.query.q || ''; 
+    const statusFilter = req.query.status || ''; 
+    const offset = (page - 1) * pageSize; 
+
+    // Cláusula de filtro
+    let fullWhereClause = `1 = 1`; 
+    if (statusFilter) fullWhereClause += ` AND C.status_Cham = @statusFilter`;
+    if (searchTerm) fullWhereClause += ` AND (C.titulo_Cham LIKE @searchTerm OR C.descricao_Cham LIKE @searchTerm)`;
+
+    const orderByClause = `
+        ORDER BY 
+            CASE C.status_Cham WHEN 'Em andamento' THEN 1 WHEN 'Aberto' THEN 2 WHEN 'Fechado' THEN 3 ELSE 9 END ASC,
+            C.dataAbertura_Cham DESC
+    `;
+
     try {
         const pool = await getPool();
-        const result = await pool.request().query(`
+        const request = pool.request()
+            .input('offset', sql.Int, offset)
+            .input('pageSize', sql.Int, pageSize)
+            .input('statusFilter', sql.NVarChar, statusFilter)
+            .input('searchTerm', sql.NVarChar, `%${searchTerm}%`);
+
+        // 1. SELECT dos dados paginados
+        const paginatedQuery = `
             SELECT C.*, U_TECNICO.nome_User AS tecNome, U_TECNICO.sobrenome_User AS tecSobrenome
             FROM Chamado AS C
             LEFT JOIN Usuario AS U_TECNICO ON C.tecResponsavel_Cham = U_TECNICO.id_User
-            ORDER BY 
-                CASE C.status_Cham WHEN 'Em andamento' THEN 1 WHEN 'Aberto' THEN 2 WHEN 'Fechado' THEN 3 ELSE 9 END ASC,
-                C.dataAbertura_Cham DESC
-        `);
-        res.json(result.recordset);
+            WHERE ${fullWhereClause} 
+            ${orderByClause}
+            OFFSET @offset ROWS
+            FETCH NEXT @pageSize ROWS ONLY;
+        `;
+        
+        // 2. SELECT do total de registros
+        const countQuery = `
+            SELECT COUNT(C.id_Cham) AS totalCount 
+            FROM Chamado AS C
+            WHERE ${fullWhereClause};
+        `;
+        
+        // Executa as duas queries juntas
+        const result = await request.query(paginatedQuery + countQuery);
+
+        res.json({
+            chamados: result.recordsets[0],
+            totalCount: result.recordsets[1][0].totalCount,
+            page: page,
+            pageSize: pageSize
+        });
     } catch (error) {
-        res.status(500).json({ error: error.message });
+        console.error('Erro ao buscar todos os chamados (Admin):', error);
+        res.status(500).json({ error: 'Erro interno ao buscar todos os chamados.' });
     }
 });
 

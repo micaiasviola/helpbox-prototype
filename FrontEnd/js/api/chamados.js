@@ -3,18 +3,23 @@ import { API_BASE } from '../utils/constants.js';
 /**
  * Busca todos os chamados da API
  */
-export async function apiGetChamados() {
+export async function apiGetChamados(page = 1, pageSize = 5, q = '', status = '') { 
     try {
-        const response = await fetch(`${API_BASE}/chamados`, {
-            credentials: 'include'
-        });
+        let url = `${API_BASE}/chamados?page=${page}&pageSize=${pageSize}`;
+        if (q) url += `&q=${encodeURIComponent(q)}`;
+        if (status) url += `&status=${encodeURIComponent(status)}`;
+        
+        const response = await fetch(url, { credentials: 'include' });
+        
         if (response.ok) {
-            return await response.json();
+            // Retorna o objeto paginado { chamados: [...], totalCount: N }
+            return await response.json(); 
         }
-        throw new Error('Erro ao buscar chamados');
+        throw new Error('Erro ao buscar todos os chamados (Admin)');
     } catch (error) {
         console.error('Erro API:', error);
-        return [];
+        // Retorna um objeto vazio que o frontend sabe como tratar
+        return { chamados: [], totalCount: 0 }; 
     }
 }
 
@@ -123,29 +128,21 @@ export async function apiGetMeusChamados(page = 1, pageSize = 5, q = '', status 
     }
 }
 
-export async function apiGetChamadosTecnico() {
+export async function apiGetChamadosTecnico(page = 1, pageSize = 5, q = '', status = '') { 
     try {
-        // Nova rota específica para o Técnico
-        const response = await fetch(`${API_BASE}/chamados/tecnico`, {
-            credentials: 'include'
-        });
+        let url = `${API_BASE}/chamados/tecnico?page=${page}&pageSize=${pageSize}`;
+        // Não passamos q/status no backend /tecnico, mas deixamos a função flexível
+        
+        const response = await fetch(url, { credentials: 'include' });
         
         if (response.ok) {
-            return await response.json();
+             // Retorna o objeto paginado { chamados: [...], totalCount: N }
+            return await response.json(); 
         }
-        
-        let errorData = {};
-        try {
-            errorData = await response.json();
-        } catch (e) {
-            errorData.error = `Erro HTTP ${response.status}: ${response.statusText}`;
-        }
-        
-        throw new Error(errorData.error || 'Erro ao buscar chamados do técnico.');
-        
+        throw new Error('Erro ao buscar chamados da fila técnica.');
     } catch (error) {
         console.error('Erro API (Chamados Técnico):', error);
-        throw error;
+        return { chamados: [], totalCount: 0 };
     }
 }
 
