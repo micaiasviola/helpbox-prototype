@@ -182,25 +182,25 @@ class ChamadoManager extends BaseListView {
         if (isInProgress) {
             if (isAssignedToMe) {
                 // Se está atribuído a ele, ele continua (independente de ser o autor)
-                return `<button class="btn" data-action="continue" data-id="${c.id_Cham}">Continuar Solucionando</button>`;
+                return `<button class="btn btn-third" data-action="continue" data-id="${c.id_Cham}">Continuar Solucionando</button>`;
             } else if (!c.tecResponsavel_Cham) {
                 // Chamado livre na fila
                 
                 // 🚨 CORREÇÃO: Bloqueia a ação 'take' se o Admin/Tecnico for o autor
                 if (isAuthor) {
-                    return '<button class="btn secondary" disabled>Você é o Autor</button>';
+                    return '<button class="btn btn-secondary" disabled>Você é o Autor</button>';
                 }
                 
-                return `<button class="btn primary" data-action="take" data-id="${c.id_Cham}">🛠️ Solucionar Chamado</button>`;
+                return `<button class="btn btn-primary" data-action="take" data-id="${c.id_Cham}">🛠️ Solucionar Chamado</button>`;
             } else {
                 // Em Andamento, mas de outro técnico/administrador
-                return '<button class="btn secondary" disabled>Em Andamento (Atribuído)</button>';
+                return '<button class="btn btn-secondary" disabled>Em Andamento (Atribuído)</button>';
             }
         }
         
         // Chamados "Aberto" (fora do fluxo de trabalho do técnico)
         if (c.status_Cham === 'Aberto') {
-            return '<button class="btn secondary" disabled>Aguardando IA/Cliente</button>';
+            return '<button class="btn btn-secondary" disabled>Aguardando IA/Cliente</button>';
         }
 
         return '';
@@ -223,7 +223,7 @@ class ChamadoManager extends BaseListView {
                 : (c.tecResponsavel_Cham || 'Sem técnico'); 
             
             const closeButton = (c.tecResponsavel_Cham === this.usuarioLogadoId && c.status_Cham !== 'Fechado') 
-                ? `<button class="btn danger" data-action="close" data-id="${c.id_Cham}">Finalizar ✓</button>` 
+                ? `<button class="btn btn-secondary" data-action="close" data-id="${c.id_Cham}">Finalizar ✓</button>` 
                 : '';
 
             return `
@@ -237,7 +237,7 @@ class ChamadoManager extends BaseListView {
                     <td>${formatDate(c.dataAbertura_Cham)}</td>
                     <td>
                         ${actionButton}
-                        ${closeButton}
+                        <!-- ${closeButton}-->
                     </td>
                  </tr>
             `;
