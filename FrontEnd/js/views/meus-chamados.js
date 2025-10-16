@@ -1,5 +1,6 @@
 import { apiGetMeusChamados } from '../api/chamados.js';
 import { store } from '../store.js';
+import { renderBadge, getPrioridadeTexto, formatDate } from '../utils/helpers.js';
 import { iniciarSolucao } from './solucionar-chamado-detalhe.js';
 
 // Constantes de Nível de Acesso e Paginação
@@ -31,13 +32,13 @@ class MeusChamadosView {
     getTemplate() {
         return `
             <div class="toolbar">
-                <select id="filtroStatus" class="select" style="max-width:220px">
+                <select id="filtroStatus" class="select filtro-status">
                     <option value="">Todos os status</option>
                     <option ${this.filtroStatus === 'Aberto' ? 'selected' : ''}>Aberto</option>
                     <option ${this.filtroStatus === 'Em andamento' ? 'selected' : ''}>Em andamento</option>
                     <option ${this.filtroStatus === 'Fechado' ? 'selected' : ''}>Fechado</option>
                 </select>
-                <input id="busca" class="input" placeholder="Buscar por descrição..." style="max-width:320px" value="${this.termoBusca}"/>
+                <input id="busca" class="input input-busca" placeholder="Buscar por descrição..." value="${this.termoBusca}"/>
                 <button id="refreshChamados" class="btn">🔄 Atualizar</button>
             </div>
             
@@ -60,7 +61,7 @@ class MeusChamadosView {
                 </tbody>
             </table>
             
-            <div id="paginationContainer" style="margin-top: 15px; text-align: center;"></div>
+            <div id="paginationContainer" class="pagination-container""></div>
         `;
     }
 
@@ -147,10 +148,10 @@ class MeusChamadosView {
             this.renderPagination();
             
             if (this.chamados.length === 0 && tbody) {
-                 tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;">Nenhum chamado encontrado.</td></tr>';
+                 tbody.innerHTML = '<tr><td colspan="8" class="td-center"">Nenhum chamado encontrado.</td></tr>';
             }
         } catch (error) {
-            if (tbody) tbody.innerHTML = `<tr><td colspan="8" style="color:red; text-align:center;">Erro ao carregar chamados: ${error.message}</td></tr>`;
+            if (tbody) tbody.innerHTML = `<tr><td colspan="8" class="td-error"">Erro ao carregar chamados: ${error.message}</td></tr>`;
             console.error(error);
         } finally {
             if (loadingDiv) loadingDiv.style.display = 'none';
@@ -184,7 +185,7 @@ class MeusChamadosView {
             // Se for um chamado ativo, ele pode continuar solucionando.
             if (statusLower !== 'fechado') {
                 return `
-                    <button class="btn btn-primary btn-sm" onclick="iniciarSolucao(${chamadoId})">
+                    <button class="btn btn-third btn-sm" onclick="iniciarSolucao(${chamadoId})">
                         Continuar Solucionando
                     </button>
                 `;
@@ -244,8 +245,8 @@ class MeusChamadosView {
                     <td>${chamado.id_Cham}</td>
                      <td>${nomeCompleto || chamado.clienteId_Cham}</td> 
                      <td>${chamado.titulo_Cham || chamado.descricao_Cham.substring(0, 50) + '...'}</td>
-                     <td>${chamado.status_Cham}</td>
-                     <td>${chamado.prioridade_Cham}</td>
+                     <td>${renderBadge(chamado.status_Cham)}</td>
+                     <td>${getPrioridadeTexto(chamado.prioridade_Cham)}</td>
                      <td>${chamado.categoria_Cham}</td>
                      <td>${new Date(chamado.dataAbertura_Cham).toLocaleDateString()}</td>
                      <td>
