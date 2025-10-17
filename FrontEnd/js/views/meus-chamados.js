@@ -262,8 +262,6 @@ class MeusChamadosView {
 }
 
 window.iniciarSolucao = iniciarSolucao;
-// Se 'detalharChamadoIA' for uma função, deve ser tornada global aqui também
-// window.detalharChamadoIA = detalharChamadoIA; 
 
 export function renderMeusChamados() {
     window.meusChamadosView = new MeusChamadosView('view');

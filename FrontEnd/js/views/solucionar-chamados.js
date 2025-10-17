@@ -130,7 +130,7 @@ class ChamadoManager extends BaseListView {
             }
             
             let response;
-            // 🚨 IMPORTANTE: O backend deve ser atualizado para aceitar todos esses parâmetros
+            
             const apiParams = [this.currentPage, this.pageSize, this.termoBusca, this.filtroStatus];
 
             if (this.nivelAcesso === NIVEL_ADMIN) {
