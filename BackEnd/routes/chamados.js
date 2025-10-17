@@ -477,4 +477,158 @@ router.put('/escalar/:id', async (req, res) => {
     }
 });
 
+
+// ====================================================================
+// ROTA 4: PUT /fechar/:id (Ação do Cliente - Fecha o Chamado)
+// ====================================================================
+
+router.put('/fechar/:id', async (req, res) => {
+    const { id } = req.params;
+    const chamadoId = parseInt(id);
+    const usuarioId = req.session?.usuario?.id;
+
+    if (isNaN(chamadoId) || !usuarioId) {
+        return res.status(400).json({ error: 'ID de chamado inválido ou usuário não identificado.' });
+    }
+
+    try {
+        const pool = await getPool();
+        
+        // 1. Opcional: Verificar se o usuário é o cliente original
+        const checkQuery = `SELECT clienteId_Cham, status_Cham FROM Chamado WHERE id_Cham = @id`;
+        const checkResult = await pool.request().input('id', sql.Int, chamadoId).query(checkQuery);
+
+        if (checkResult.recordset.length === 0) {
+            return res.status(404).json({ error: 'Chamado não encontrado.' });
+        }
+        
+        const chamadoInfo = checkResult.recordset[0];
+        
+        if (chamadoInfo.clienteId_Cham !== usuarioId) {
+            return res.status(403).json({ error: 'Acesso negado. Apenas o cliente pode fechar este chamado.' });
+        }
+
+        // 2. Atualiza o status para 'Fechado' e a data de fechamento para AGORA
+        const query = `
+            UPDATE Chamado 
+            SET 
+                status_Cham = 'Fechado', 
+                dataFechamento_Cham = GETDATE(),
+                solucaoFinal_Cham = 'Validado e fechado pelo cliente'
+            WHERE id_Cham = @id
+        `;
+
+        await pool.request()
+            .input('id', sql.Int, chamadoId)
+            .query(query);
+
+        res.json({ success: true, message: 'Chamado fechado pelo cliente com sucesso.' });
+    } catch (error) {
+        console.error('Erro ao fechar chamado pelo cliente:', error);
+        res.status(500).json({ error: 'Erro interno ao fechar chamado.' });
+    }
+});
+
+// ====================================================================
+// ROTA 5: PUT /reabrir/:id (Ação do Cliente - Reabre o Chamado)
+// ====================================================================
+
+router.put('/reabrir/:id', async (req, res) => {
+    const { id } = req.params;
+    const chamadoId = parseInt(id);
+    const usuarioId = req.session?.usuario?.id;
+    
+    // Status de reabertura (volta para o estado inicial para triagem)
+    const STATUS_REABERTO = 'Em andamento'; 
+
+    if (isNaN(chamadoId) || !usuarioId) {
+        return res.status(400).json({ error: 'ID de chamado inválido ou usuário não identificado.' });
+    }
+
+    try {
+        const pool = await getPool();
+        
+        // 1. Opcional: Verificar se o usuário é o cliente original e se o status é 'Fechado'
+        const checkQuery = `SELECT clienteId_Cham, status_Cham FROM Chamado WHERE id_Cham = @id`;
+        const checkResult = await pool.request().input('id', sql.Int, chamadoId).query(checkQuery);
+
+        if (checkResult.recordset.length === 0) {
+            return res.status(404).json({ error: 'Chamado não encontrado.' });
+        }
+        
+        const chamadoInfo = checkResult.recordset[0];
+        
+        if (chamadoInfo.clienteId_Cham !== usuarioId || chamadoInfo.status_Cham !== 'Fechado') {
+             // Retorna erro ou ignora, dependendo da política. Aqui, retornamos 403.
+             return res.status(403).json({ error: 'A reabertura só é permitida pelo cliente e apenas quando o status atual for Fechado.' });
+        }
+        
+        // 2. Atualiza o status, remove o técnico e limpa a data de fechamento
+        const query = `
+            UPDATE Chamado 
+            SET 
+                status_Cham = @statusReaberto, 
+                tecResponsavel_Cham = NULL, -- Remove qualquer técnico atribuído
+                dataFechamento_Cham = NULL, -- Limpa a data de fechamento
+                solucaoFinal_Cham = 'Reaberto pelo cliente' -- Registra a ação
+            WHERE id_Cham = @id
+        `;
+
+        await pool.request()
+            .input('id', sql.Int, chamadoId)
+            .input('statusReaberto', sql.VarChar(20), STATUS_REABERTO)
+            .query(query);
+
+        res.json({ success: true, message: `Chamado reaberto com sucesso. Status atualizado para: ${STATUS_REABERTO}.` });
+    } catch (error) {
+        console.error('Erro ao reabrir chamado:', error);
+        res.status(500).json({ error: 'Erro interno ao reabrir chamado.' });
+    }
+});
+
+// ====================================================================
+// ROTA 6: PUT /concordar/:id (Ação do Cliente - Apenas registra concordância)
+// ====================================================================
+
+router.put('/concordar/:id', async (req, res) => {
+    const { id } = req.params;
+    const chamadoId = parseInt(id);
+    const usuarioId = req.session?.usuario?.id;
+
+    if (isNaN(chamadoId) || !usuarioId) {
+        return res.status(400).json({ error: 'ID de chamado inválido ou usuário não identificado.' });
+    }
+    
+    try {
+        const pool = await getPool();
+        
+        // Opcional: Verificar se o usuário é o cliente original e se o status é 'Fechado'
+        const checkQuery = `SELECT clienteId_Cham, status_Cham FROM Chamado WHERE id_Cham = @id`;
+        const checkResult = await pool.request().input('id', sql.Int, chamadoId).query(checkQuery);
+        
+        if (checkResult.recordset.length === 0 || checkResult.recordset[0].clienteId_Cham !== usuarioId) {
+             return res.status(403).json({ error: 'Acesso negado ou chamado não encontrado.' });
+        }
+        
+        // Apenas adiciona uma nota de registro ou atualiza um campo de metadado
+        const query = `
+            UPDATE Chamado 
+            SET 
+                solucaoFinal_Cham = 'Solução mantida. Cliente concordou com o fechamento final.'
+                -- O status_Cham permanece 'Fechado'
+            WHERE id_Cham = @id
+        `;
+
+        await pool.request()
+            .input('id', sql.Int, chamadoId)
+            .query(query);
+
+        res.json({ success: true, message: 'Concordância registrada. Chamado permanece fechado.' });
+    } catch (error) {
+        console.error('Erro ao registrar concordância:', error);
+        res.status(500).json({ error: 'Erro interno ao registrar concordância.' });
+    }
+});
+
+
 module.exports = router;
