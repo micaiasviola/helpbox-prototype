@@ -1,6 +1,6 @@
 import { YEAR } from './utils/constants.js';
 import { API_BASE } from './utils/constants.js';
-import { applyAccent } from './utils/helpers.js';
+import { applyAccent} from './utils/helpers.js';
 import { renderDashboard } from './views/dashboard.js';
 import { renderAbrirChamado } from './views/abrir-chamado.js';
 // Mantendo o import original (que aponta para solucionar-chamados.js, mas o nome é renderMeusChamados)
@@ -228,7 +228,7 @@ async function atualizarMetaUsuario() {
         }
     }
 
-    // *** SOLUÇÃO DO BUG: A navegação é iniciada AQUI, após store.usuario estar definido. ***
+    // A navegação só ocorre APÓS carregar os dados do usuário
     navigate();
 }
 
@@ -253,6 +253,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 2. Aplica a cor de destaque inicial
     applyAccent(store.preferencias.accent);
+
 });
 
 // Outros eventos

@@ -16,11 +16,10 @@ async function buscarUsuarioPorEmail(email){
                     email_User, 
                     senha_User, 
                     nivelAcesso_User,
-                      -- ADICIONE OS CAMPOS FALTANTES AQUI:
-                      nome_User,
-                      sobrenome_User,
-                      cargo_User,
-                      departamento_User
+                    nome_User,
+                    sobrenome_User,
+                    cargo_User,
+                    departamento_User
                 FROM Usuario 
                 WHERE email_User = @email
             `);

@@ -1,4 +1,3 @@
-// middlewares/verificaSessao.js
 
 function verificaSessao(req, res, next) {
     
@@ -9,5 +8,4 @@ function verificaSessao(req, res, next) {
     }
 }
 
-// ** ESTA LINHA É CRÍTICA! **
 module.exports = verificaSessao;

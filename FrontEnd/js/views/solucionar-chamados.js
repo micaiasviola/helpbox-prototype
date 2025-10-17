@@ -1,5 +1,5 @@
 import { apiGetChamados, apiGetChamadosTecnico, apiUpdateChamado } from '../api/chamados.js';
-import { renderBadge, getPrioridadeTexto, formatDate } from '../utils/helpers.js';
+import { renderBadge, getPrioridadeTexto, formatDate, renderDescricaoCurta } from '../utils/helpers.js';
 import { iniciarSolucao } from './solucionar-chamado-detalhe.js'
 import { store } from '../store.js';
 import { BaseListView } from '../utils/base-list-view.js';
@@ -122,7 +122,7 @@ class ChamadoManager extends BaseListView {
     /**
     * Carrega os dados de chamados da API e atualiza o estado da classe.
     */
-    async loadData() { // 🚨 Renomeado de loadChamadosFromDB para loadData
+    async loadData() {
         try {
              if (this.loadingIndicator) {
                 this.loadingIndicator.style.display = 'block';
@@ -148,7 +148,7 @@ class ChamadoManager extends BaseListView {
             this.totalCount = response.totalCount;
 
             this.drawChamados(); // Aplica filtros locais (necessário se o backend não fizer tudo)
-            this.renderPagination(); // 🚨 MÉTODO HERDADO
+            this.renderPagination(); // MÉTODO HERDADO
 
             if (this.loadingIndicator) {
                 this.loadingIndicator.style.display = 'none';
@@ -171,11 +171,11 @@ class ChamadoManager extends BaseListView {
         const isInProgress = c.status_Cham === STATUS_EM_ANDAMENTO;
         const isClosed = c.status_Cham === 'Fechado';
         
-        // 🚨 NOVA REGRA DE NEGÓCIO: Checa se o usuário logado é o autor do chamado
+        // Checa se o usuário logado é o autor do chamado
         const isAuthor = c.clienteId_Cham === this.usuarioLogadoId; 
 
         if (isClosed) {
-            return '<button class="btn secondary" disabled>Fechado</button>';
+            return `<button class="btn secondary" onclick="detalharChamadoIA(${c.id_Cham})">Fechado</button>`;
         }
         
         // Lógica para chamados EM ANDAMENTO (já na fila de trabalho)
@@ -230,7 +230,8 @@ class ChamadoManager extends BaseListView {
                  <tr>
                     <td>${c.id_Cham}</td>
                     <td>${nomeTecnico}</td> 
-                    <td>${c.descricao_Cham || 'Sem descrição'}</td>
+                    
+                    <td>${renderDescricaoCurta(c.descricao_Cham, c.id_Cham) || 'Sem descrição'}</td>
                     <td>${renderBadge(c.status_Cham)}</td>
                     <td>${getPrioridadeTexto(c.prioridade_Cham)}</td>
                     <td>${c.categoria_Cham || 'Não definida'}</td>

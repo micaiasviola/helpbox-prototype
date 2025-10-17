@@ -1,6 +1,6 @@
 import { apiGetMeusChamados } from '../api/chamados.js';
 import { store } from '../store.js';
-import { renderBadge, getPrioridadeTexto, formatDate } from '../utils/helpers.js';
+import { renderBadge, getPrioridadeTexto, renderDescricaoCurta } from '../utils/helpers.js';
 import { iniciarSolucao } from './solucionar-chamado-detalhe.js';
 
 // Constantes de Nível de Acesso e Paginação
@@ -49,7 +49,7 @@ class MeusChamadosView {
                     <tr>
                         <th>ID Chamado</th>
                         <th>Cliente</th> 
-                        <th>Título</th>
+                        <th>Descrição</th>
                         <th>Status</th>
                         <th>Prioridade</th>
                         <th>Categoria</th>
@@ -74,14 +74,14 @@ class MeusChamadosView {
             this.currentPage = 1;
         }
         // Chamado com forceReload=true para ignorar o cache (se ele existisse)
-        this.loadChamados(true); 
+        this.loadChamados(true);
     }
 
     attachListeners() {
         const filtroStatusEl = document.getElementById('filtroStatus');
         const buscaEl = document.getElementById('busca');
         const refreshEl = document.getElementById('refreshChamados');
-        
+
         // Listener de Filtro de Status (Dispara busca GLOBAL no servidor)
         if (filtroStatusEl) {
             filtroStatusEl.addEventListener('change', (e) => {
@@ -96,7 +96,7 @@ class MeusChamadosView {
             let debounceTimeout;
             buscaEl.addEventListener('input', (e) => {
                 clearTimeout(debounceTimeout);
-                
+
                 // Usamos debounce para não sobrecarregar o servidor a cada tecla
                 debounceTimeout = setTimeout(() => {
                     this.termoBusca = e.target.value.toLowerCase();
@@ -110,7 +110,7 @@ class MeusChamadosView {
         if (refreshEl) {
             refreshEl.addEventListener('click', () => {
                 // Ao atualizar, mantém os filtros e recarrega a página 1
-                this.triggerLoad(true); 
+                this.triggerLoad(true);
             });
         }
     }
@@ -119,7 +119,7 @@ class MeusChamadosView {
         const totalPages = Math.ceil(this.totalCount / this.pageSize);
         if (page < 1 || page > totalPages) return;
         this.currentPage = page;
-        this.loadChamados(true); 
+        this.loadChamados(true);
     }
 
     /**
@@ -128,27 +128,27 @@ class MeusChamadosView {
     async loadChamados() {
         const loadingDiv = document.getElementById('loadingChamados');
         const tbody = document.getElementById('tbodyChamados');
-        
+
         if (loadingDiv) loadingDiv.style.display = 'block';
-        if (tbody) tbody.innerHTML = ''; 
+        if (tbody) tbody.innerHTML = '';
 
         try {
             // 🚨 NOVO: Passando todos os parâmetros de filtragem para a API
             const response = await apiGetMeusChamados(
-                this.currentPage, 
-                this.pageSize, 
+                this.currentPage,
+                this.pageSize,
                 this.termoBusca,
                 this.filtroStatus
-            ); 
-            
+            );
+
             this.chamados = response.chamados;
             this.totalCount = response.totalCount;
 
             this.renderTable(this.chamados); // Apenas renderiza, sem filtro local
             this.renderPagination();
-            
+
             if (this.chamados.length === 0 && tbody) {
-                 tbody.innerHTML = '<tr><td colspan="8" class="td-center"">Nenhum chamado encontrado.</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="8" class="td-center"">Nenhum chamado encontrado.</td></tr>';
             }
         } catch (error) {
             if (tbody) tbody.innerHTML = `<tr><td colspan="8" class="td-error"">Erro ao carregar chamados: ${error.message}</td></tr>`;
@@ -162,26 +162,26 @@ class MeusChamadosView {
 
     getActionButton(chamadoId, status, clienteId_Cham) {
         const statusLower = status.toLowerCase();
-        
-        // 🚨 NOVO: Variável para checar se o usuário logado é o autor do chamado
+
+        // Variável para checar se o usuário logado é o autor do chamado
         const isAuthor = this.usuarioLogadoId === clienteId_Cham;
-        
+
         // --- 1. LÓGICA DO CLIENTE/AUTOR ---
         // Se o usuário logado é o autor (Nível 1, ou Admin abrindo para si mesmo)
         // Ele SEMPRE deve ver o botão de Cliente ("Ver Solução"), a menos que seja um Nível 2 que pegou.
         if (isAuthor) {
             // Se o Admin/Técnico é o autor, ele deve ver como um cliente (Ver Solução)
-             return `
+            return `
                 <button class="btn btn-primary btn-sm" onclick="detalharChamadoIA(${chamadoId})">
                     Ver Solução
                 </button>
             `;
         }
-        
+
         // --- 2. LÓGICA DO TÉCNICO/SOLUCIONADOR ---
         // Se não é o autor, mas é um Técnico/Admin que está no escopo de solução (Nível >= 2).
         if (this.nivelAcesso >= NIVEL_TECNICO) {
-            
+
             // Se for um chamado ativo, ele pode continuar solucionando.
             if (statusLower !== 'fechado') {
                 return `
@@ -222,7 +222,7 @@ class MeusChamadosView {
         }
 
         buttons += `<button class="btn btn-sm" ${this.currentPage === totalPages ? 'disabled' : ''} onclick="window.meusChamadosView.goToPage(${this.currentPage + 1})">Próximo →</button>`;
-        
+
         paginationContainer.innerHTML = `<div class="pagination">${buttons}</div>`;
     }
 
@@ -232,20 +232,19 @@ class MeusChamadosView {
 
         tbody.innerHTML = data.map(chamado => {
             const nomeCompleto = `${chamado.nome_User || ''} ${chamado.sobrenome_User || ''}`.trim();
-            
-            // 🚨 NOVO: Passar o ID do cliente que abriu o chamado
+
+            // Passar o ID do cliente que abriu o chamado
             const actionButton = this.getActionButton(
-                chamado.id_Cham, 
-                chamado.status_Cham, 
-                chamado.clienteId_Cham // <--- NOVO PARÂMETRO
+                chamado.id_Cham,
+                chamado.status_Cham,
+                chamado.clienteId_Cham
             );
 
             return `
                  <tr>
                     <td>${chamado.id_Cham}</td>
                      <td>${nomeCompleto || chamado.clienteId_Cham}</td> 
-                     <td>${chamado.titulo_Cham || chamado.descricao_Cham.substring(0, 50) + '...'}</td>
-                     <td>${renderBadge(chamado.status_Cham)}</td>
+                    <td>${renderDescricaoCurta(chamado.descricao_Cham, chamado.id_Cham)}</td>                     <td>${renderBadge(chamado.status_Cham)}</td>
                      <td>${getPrioridadeTexto(chamado.prioridade_Cham)}</td>
                      <td>${chamado.categoria_Cham}</td>
                      <td>${new Date(chamado.dataAbertura_Cham).toLocaleDateString()}</td>
@@ -262,7 +261,7 @@ class MeusChamadosView {
     }
 }
 
-window.iniciarSolucao = iniciarSolucao; 
+window.iniciarSolucao = iniciarSolucao;
 // Se 'detalharChamadoIA' for uma função, deve ser tornada global aqui também
 // window.detalharChamadoIA = detalharChamadoIA; 
 
