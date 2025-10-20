@@ -1,6 +1,6 @@
 import { YEAR } from './utils/constants.js';
 import { API_BASE } from './utils/constants.js';
-import { applyAccent } from './utils/helpers.js';
+import { applyAccent} from './utils/helpers.js';
 import { renderDashboard } from './views/dashboard.js';
 import { renderAbrirChamado } from './views/abrir-chamado.js';
 // Mantendo o import original (que aponta para solucionar-chamados.js, mas o nome é renderMeusChamados)
@@ -14,7 +14,7 @@ import { iniciarSolucao } from './views/solucionar-chamado-detalhe.js';
 // Constantes de Nível de Acesso
 const NIVEL_ADMIN = 3;
 const NIVEL_SOLUCIONADOR = 2; // Assumindo que o acesso a "Solucionar Chamados" começa no nível 2 (Técnico)
-
+const NIVEL_COMUM = 1;
 
 // Mapeamento de Rotas Restritas (Guarda de Rota)
 const ROTA_NIVEL_MINIMO = {
@@ -75,13 +75,20 @@ function navigate() {
     const idParam = hashParts[1]; // Ex: '42' (o ID do chamado)
     // Pega o objeto do usuário (GARANTIDO de estar carregado pela initializeApp)
     const usuario = store.usuarioLogado;
-
+    const nivelDoUsuario = usuario?.nivel_acesso;
     // 1. GUARDA DE ROTA: Checagem de Acesso
     const nivelNecessario = ROTA_NIVEL_MINIMO[hash];
 
+    // Regra especial: Bloqueia acesso à rota 'abrir' para solucionadores (nível 2)
+    if (hash === 'abrir' && nivelDoUsuario) {
+        if (nivelDoUsuario === NIVEL_SOLUCIONADOR) {
+            renderAccessDenied(hash);
+            return;
+        }
+    }
+
+    // Regra especial: Bloqueia acesso à rota 'todos' e 'usuarios' para clientes
     if (nivelNecessario) {
-        // Verifica se o usuário tem a propriedade de nível (e qual é o nível)
-        const nivelDoUsuario = usuario?.nivel_acesso;
 
         if (!nivelDoUsuario || nivelDoUsuario < nivelNecessario) {
             renderAccessDenied(hash);
@@ -119,6 +126,14 @@ function controlarAcessoMenu(usuarioLogado) {
     // Mantendo a verificação original do nome da variável
     const nivelDoUsuario = usuarioLogado.nivel_acesso;
 
+    // Bloqueio Específico: Rota 'abrir' (Apenas Nível 2 bloqueado)
+    const linkAbrir = document.getElementById('menuAbrirChamado') || document.querySelector('[href="#/abrir"]');
+
+    if (linkAbrir) {
+        // Se o nível for EXATAMENTE NIVEL_SOLUCIONADOR (2), esconde o link.
+        const deveEsconder = nivelDoUsuario === NIVEL_SOLUCIONADOR;
+        linkAbrir.style.display = deveEsconder ? 'none' : '';
+    }
     const linksRestritos = [
         // Rota 'todos' (Solucionar Chamados)
         { route: 'todos', nivelMinimo: NIVEL_SOLUCIONADOR, id: 'menuSolucionarChamados' },
@@ -213,7 +228,7 @@ async function atualizarMetaUsuario() {
         }
     }
 
-    // *** SOLUÇÃO DO BUG: A navegação é iniciada AQUI, após store.usuario estar definido. ***
+    // A navegação só ocorre APÓS carregar os dados do usuário
     navigate();
 }
 
@@ -238,6 +253,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 2. Aplica a cor de destaque inicial
     applyAccent(store.preferencias.accent);
+
 });
 
 // Outros eventos

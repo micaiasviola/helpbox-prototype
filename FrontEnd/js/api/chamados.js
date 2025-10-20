@@ -221,3 +221,68 @@ export async function apiGetChamadoById(id) {
         throw error; 
     }
 }
+
+/**
+ * [Ação do Cliente] Envia um PATCH para fechar o chamado após validação do cliente.
+ * Corresponde à rota PUT /fechar/:id no backend.
+ */
+export async function apiFecharChamado(chamadoId) {
+    const response = await fetch(`${API_BASE}/chamados/fechar/${chamadoId}`, {
+        method: 'PUT',
+        credentials: 'include',
+        headers: {
+            'Content-Type': 'application/json',
+        }
+    });
+
+    if (!response.ok) {
+        // Tenta ler a mensagem de erro do backend, se houver
+        const errorData = await response.json().catch(() => ({ error: 'Falha desconhecida ao fechar o chamado.' }));
+        throw new Error(errorData.error || 'Erro ao fechar o chamado via API.');
+    }
+
+    // Retorna a confirmação de sucesso
+    return response.json();
+}
+
+/**
+ * [Ação do Cliente] Envia um PATCH para reabrir o chamado, alterando o status para 'Aberto' e removendo o técnico.
+ * Corresponde à rota PUT /reabrir/:id no backend.
+ */
+export async function apiReabrirChamado(chamadoId) {
+    const response = await fetch(`${API_BASE}/chamados/reabrir/${chamadoId}`, {
+        method: 'PUT',
+        credentials: 'include',
+        headers: {
+            'Content-Type': 'application/json',
+        }
+    });
+
+    if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Falha desconhecida ao reabrir o chamado.' }));
+        throw new Error(errorData.error || 'Erro ao reabrir o chamado via API.');
+    }
+
+    return response.json();
+}
+
+/**
+ * [Ação do Cliente] Envia um PATCH para registrar a concordância do cliente com a solução final (mantendo o status 'Fechado').
+ * Corresponde à rota PUT /concordar/:id no backend.
+ */
+export async function apiConcordarSolucao(chamadoId) {
+    const response = await fetch(`${API_BASE}/chamados/concordar/${chamadoId}`, {
+        method: 'PUT',
+        credentials: 'include',
+        headers: {
+            'Content-Type': 'application/json',
+        }
+    });
+
+    if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Falha desconhecida ao concordar com a solução.' }));
+        throw new Error(errorData.error || 'Erro ao registrar concordância via API.');
+    }
+
+    return response.json();
+}
