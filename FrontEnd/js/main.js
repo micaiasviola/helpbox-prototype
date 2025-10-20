@@ -253,3 +253,32 @@ document.getElementById('globalSearch').addEventListener('change', e => {
         if (input) { input.value = q; input.dispatchEvent(new Event('input')); }
     }, 0);
 });
+
+
+//Menu dropdown do usuário
+document.addEventListener('DOMContentLoaded', () => {
+    // Seleciona os elementos do menu
+    const userMenuTrigger = document.getElementById('userMenuTrigger');
+    const userDropdownMenu = document.getElementById('userDropdownMenu');
+
+    // Verifica se os elementos existem na página
+    if (userMenuTrigger && userDropdownMenu) {
+        // Adiciona o evento de clique ao gatilho do menu
+        userMenuTrigger.addEventListener('click', (event) => {
+            // Impede que o clique se propague para outros elementos (como o window)
+            event.stopPropagation();
+            // Adiciona ou remove a classe "show" para mostrar/esconder o menu
+            userDropdownMenu.classList.toggle('show');
+        });
+
+        // Evento para fechar o menu se clicar em qualquer outro lugar da tela
+        window.addEventListener('click', (event) => {
+            // Se o menu estiver aberto e o clique for fora dele
+            if (userDropdownMenu.classList.contains('show')) {
+                userDropdownMenu.classList.remove('show');
+            }
+        });
+    }
+
+    // ... o resto do seu código main.js ...
+});
