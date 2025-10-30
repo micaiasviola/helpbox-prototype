@@ -155,6 +155,7 @@ html, body {
   z-index: 5;
 }
 
+
 .search input {
   padding: 10px 14px;
   border: 1px solid #ddd;
@@ -203,6 +204,75 @@ html, body {
   flex: 1;
   padding: 20px;
   overflow-y: auto;
+}
+
+/* --- Estilos para o Dropdown do Usuário --- */
+
+/* 1. Torna o container ".user" uma referência de posicionamento */
+.user {
+    position: relative; /* Essencial para o posicionamento do dropdown */
+}
+
+/* 2. O menu dropdown em si (escondido por padrão) */
+.user-dropdown {
+    display: none; /* Começa escondido */
+    position: absolute; /* Permite "flutuar" sobre o conteúdo */
+    top: 110%; /* Posição: um pouco abaixo do cabeçalho */
+    right: 0;
+    background-color: white;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    width: 240px;
+    z-index: 1000; /* Garante que fique na frente de outros elementos */
+}
+
+/* 3. Classe "show" que será adicionada via JS para mostrar o menu */
+.user-dropdown.show {
+    display: block;
+}
+
+/* 4. Estilos internos do dropdown para organização */
+.user-dropdown .dropdown-header {
+    padding: 15px;
+    border-bottom: 1px solid #eee;
+}
+
+.user-dropdown .dropdown-header strong {
+    display: block;
+    font-size: 1em;
+    color: #333;
+}
+
+.user-dropdown .dropdown-header small {
+    font-size: 0.8em;
+    color: #777;
+}
+
+.user-dropdown .dropdown-list {
+    list-style: none;
+    padding: 10px 0;
+    margin: 0;
+}
+
+.user-dropdown .dropdown-list li {
+    padding: 8px 15px;
+    font-size: 0.9em;
+    color: #555;
+}
+
+.user-dropdown .dropdown-footer {
+    padding: 10px 15px;
+    background-color: #f9f9f9;
+    border-top: 1px solid #eee;
+    text-align: center;
+}
+
+.user-dropdown .dropdown-footer a {
+    color: #007BFF;
+    text-decoration: none;
+    font-size: 0.9em;
+    font-weight: bold;
 }
 
 /* ===============================

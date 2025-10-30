@@ -62,15 +62,31 @@
         <div class="search">
           <input id="globalSearch" type="search" placeholder="Buscar chamados, usuários..." />
         </div>
-        <div class="top-actions">
-          <button id="notifBtn" class="icon-btn" title="Notificações">🔔</button>
-          <div class="user">
-            <img src="assets/avatar.png" alt="Usuário" />
-            <div class="user-meta">
-              <strong></strong>
-              <small></small>
-              
-              
+          <div class="top-actions">
+           <button id="notifBtn" class="icon-btn" title="Notificações">🔔</button>
+             <div class="user" id="userMenuTrigger" style="cursor: pointer;">
+              <div class="user-meta">
+              <strong>Leonardo Micaias</strong>
+              <small>Desenvolvedor</small>
+              </div>
+              <img src="assets/perfil.jpg" alt="Usuário" />
+
+                <div class="user-dropdown" id="userDropdownMenu">
+                 <div class="dropdown-header">
+                  <strong id="dropdownUserName">Leonardo Micaias</strong>
+                  <small id="dropdownUserId">ID: 1024</small>
+                </div>
+                <ul class="dropdown-list">
+                <li id= "dropdownUserEmail"><strong>E-mail:</strong> admin@esfera.com</li>  
+                <li id="dropdownUserRole"><strong>Cargo:</strong> Desenvolvedor Pleno</li>
+                <li id="dropdownUserDept"><strong>Departamento:</strong> Tecnologia</li>
+                <li id="dropdownUserLevel"><strong>Nível de Acesso:</strong> Nível 3</li>
+                </ul>
+                <footer class="dropdown-footer">
+                <button id="logoutBtn" class="btn btn-logout" style="margin-top: 5px;">
+                Sair
+                </button>
+              </footer>
             </div>
           </div>
         </div>

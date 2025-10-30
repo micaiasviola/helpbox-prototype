@@ -32,6 +32,8 @@
         </div>
 
     </div>
+
+    
     <script type="module">
         import { API_BASE } from '../js/utils/constants.js';
         const loginForm = document.getElementById('loginForm');
@@ -71,6 +73,19 @@
             } catch (error) {
                 updateStatus(`Erro de Conexão: ${error.message}`, 'error');
             }
+        });
+    </script>
+    <script>
+        // 1. Encontra o link pelo ID que demos a ele.
+        const forgotPasswordLink = document.getElementById('forgot-password-link');
+
+        // 2. Adiciona um "ouvinte" que espera por um clique no link.
+        forgotPasswordLink.addEventListener('click', function(event) {
+            // Previne que o link tente navegar para outra página.
+            event.preventDefault(); 
+            
+            // 3. Mostra o pop-up (alert) com a mensagem desejada.
+            alert("Informe ao seu administrador e solicite nova senha");
         });
     </script>
 </body>
