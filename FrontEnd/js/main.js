@@ -1,6 +1,7 @@
 import { YEAR } from './utils/constants.js';
 import { API_BASE } from './utils/constants.js';
-import { applyAccent} from './utils/helpers.js';
+import { applyAccent } from './utils/helpers.js';
+import { showConfirmationModal } from './utils/feedbackmodal.js';
 import { renderDashboard } from './views/dashboard.js';
 import { renderAbrirChamado } from './views/abrir-chamado.js';
 // Mantendo o import original (que aponta para solucionar-chamados.js, mas o nome é renderMeusChamados)
@@ -176,6 +177,17 @@ async function getUsuarioLogado() {
 }
 
 async function fazerLogout() {
+    const confirmed = await showConfirmationModal(
+        "Confirmação de Saída",
+        "Deseja realmente sair do sistema? Suas alterações não salvas podem ser perdidas."
+    );
+
+    if (!confirmed) {
+        // Usuário cancelou
+        console.log("Logout cancelado.");
+        return; 
+    }
+    
     try {
         await fetch(`${API_BASE}/auth/logout`, {
             method: 'POST',

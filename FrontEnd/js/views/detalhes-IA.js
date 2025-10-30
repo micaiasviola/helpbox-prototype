@@ -3,15 +3,13 @@ import {
     apiReabrirChamado,
     apiConcordarSolucao
 } from "../api/chamados.js";
-
 import { store } from "../store.js";
+import { showConfirmationModal } from "../utils/feedbackmodal.js";
 
 
 /**
  * Constrói o template HTML para exibir os detalhes de um chamado
  * com lógica condicional para exibir botões de ação e feedback do cliente.
- * * @param {object} chamado O objeto do chamado retornado pela API.
- * @returns {string} O HTML da view de detalhes.
  */
 function getClienteDetalheTemplate(chamado) {
     // -----------------------------------------------------------------
@@ -22,11 +20,8 @@ function getClienteDetalheTemplate(chamado) {
     const nomeAbertoPor = nomeCliente.trim();
     const status = chamado.status_Cham;
 
-    // Obtém IDs para controle de acesso do técnico responsável
     const usuarioLogadoId = store.usuarioLogado?.id;
     const tecResponsavelId = chamado.tecResponsavel_Cham;
-    
-    // Verifica se o usuário logado é o técnico atribuído a este chamado
     const isTecResponsavel = usuarioLogadoId && (usuarioLogadoId === tecResponsavelId);
 
 
@@ -52,8 +47,6 @@ function getClienteDetalheTemplate(chamado) {
     // -----------------------------------------------------------------
     let acoesClienteBlock = '';
     
-    // VARIÁVEL DE CONTROLE PRINCIPAL:
-    // O Feedback do Cliente SÓ deve aparecer se o chamado estiver Fechado E o usuário NÃO for o técnico responsável.
     const deveMostrarFeedbackAposFechamento = 
         status === 'Fechado' && !isTecResponsavel;
 
@@ -74,10 +67,7 @@ function getClienteDetalheTemplate(chamado) {
     } else if (status !== 'Fechado' && status !== 'Em andamento') {
         // Opção 2: Chamado ABERTO (Permite ações iniciais: Fechar ou Encaminhar)
 
-        // Determina se o botão de Fechar (Aceitar) deve aparecer (se houver alguma solução)
         const podeFechar = chamado.solucaoIA_Cham || chamado.solucaoTec_Cham;
-
-        // Determina se o botão de Encaminhar deve aparecer (apenas se 'Aberto')
         const podeEncaminhar = status === 'Aberto'; 
 
         acoesClienteBlock = `
@@ -96,7 +86,6 @@ function getClienteDetalheTemplate(chamado) {
             </div>
         `;
     } 
-    // Outros casos (Ex: 'Em andamento' ou 'Fechado' por quem está logado) resultam em acoesClienteBlock = ''
     
     // -----------------------------------------------------------------
     // BLOCO 4: ESTRUTURA FINAL DO TEMPLATE
@@ -168,72 +157,107 @@ export class DetalhesIAView {
     attachListeners(id) {
         document.getElementById('btnVoltar').addEventListener('click', () => this.voltarParaChamados());
 
-        // Listeners para ações Iniciais (Fechar, Encaminhar) - Aparecem quando status != Fechado/Em Andamento
         const btnRejeitar = document.getElementById('btnRejeitar'); // Encaminhar
-        const btnAceitar = document.getElementById('btnAceitar');   // Fechar
-
-        if (btnRejeitar) {
-            btnRejeitar.addEventListener('click', () => this.encaminharChamado(id));
-        }
-        if (btnAceitar) {
-            btnAceitar.addEventListener('click', () => this.fecharChamado(id));
-        }
-
-        // Listeners para ações PÓS-FECHAMENTO (Concordar, Reabrir) - Aparecem quando status == Fechado
+        const btnAceitar = document.getElementById('btnAceitar'); 
         const btnConcordar = document.getElementById('btnConcordar');
         const btnReabrir = document.getElementById('btnReabrir');
 
+        if (btnRejeitar) {
+            // ❌ Não, Encaminhar para Técnico
+            btnRejeitar.addEventListener('click', () => this.handleEncaminhar(id));
+        }
+        if (btnAceitar) {
+            // ✅ Sim, Fechar Chamado (Validar Solução IA/Tecnica)
+            btnAceitar.addEventListener('click', () => this.handleFechar(id));
+        }
         if (btnConcordar) {
-            btnConcordar.addEventListener('click', () => this.concordarSolucao(id));
+            // ✅ Concordo com a Solução (Feedback Final)
+            btnConcordar.addEventListener('click', () => this.handleConcordar(id));
         }
         if (btnReabrir) {
-            btnReabrir.addEventListener('click', () => this.reabrirChamado(id));
+            // 🔄 Reabrir Chamado (Feedback Final)
+            btnReabrir.addEventListener('click', () => this.handleReabrir(id));
         }
     }
 
-    /**
-     * Envia o chamado para o estado 'Em andamento' (aparecerá para o técnico).
-     */
+    // =================================================================
+    // ENVOLTÓRIOS DE AÇÃO COM MODAL (HANDLERS)
+    // =================================================================
+
+    async handleEncaminhar(id) {
+        const confirmed = await showConfirmationModal(
+            "Confirmar Encaminhamento", 
+            "Tem certeza que deseja encaminhar este chamado para a equipe técnica? Esta ação não pode ser desfeita."
+        );
+        if (confirmed) {
+            this.encaminharChamado(id);
+        }
+    }
+    
+    async handleFechar(id) {
+        const confirmed = await showConfirmationModal(
+            "Confirmar Fechamento", 
+            "O chamado será marcado como resolvido e FECHADO. Você confirma?"
+        );
+        if (confirmed) {
+            this.fecharChamado(id);
+        }
+    }
+
+    async handleConcordar(id) {
+        const confirmed = await showConfirmationModal(
+            "Confirmação de Solução", 
+            "Ao confirmar, você valida a solução final e o chamado será mantido FECHADO."
+        );
+        if (confirmed) {
+            this.concordarSolucao(id);
+        }
+    }
+
+    async handleReabrir(id) {
+        const confirmed = await showConfirmationModal(
+            "Confirmação de Reabertura", 
+            "Você está REABRINDO este chamado. Ele retornará à fila de trabalho e um novo técnico será atribuído. Você confirma?"
+        );
+        if (confirmed) {
+            this.reabrirChamado(id);
+        }
+    }
+
+
+    // =================================================================
+    // FUNÇÕES DE AÇÃO PRINCIPAIS (EXECUTADAS APÓS CONFIRMAÇÃO)
+    // =================================================================
+
+    /** Envia o chamado para o estado 'Em andamento' (aparecerá para o técnico). */
     async encaminharChamado(id) {
         document.getElementById('alert').innerHTML = '<div class="card info">Encaminhando para técnico...</div>';
         try {
             await apiEncaminharChamado(id);
             document.getElementById('alert').innerHTML = '<div class="card success">➡️ Chamado encaminhado para a equipe técnica com sucesso.</div>';
-            // Recarrega o componente para atualizar o status (deve ir para 'Em andamento')
             setTimeout(() => { this.render(); }, 1500);
         } catch (error) {
             document.getElementById('alert').innerHTML = `<div class="card error">❌ Falha ao encaminhar: ${error.message}</div>`;
         }
     }
 
-    /**
-     * NOVO/REFATORADO: Fecha o chamado pelo próprio cliente (validando a solução).
-     * Conectado ao 'btnAceitar'.
-     */
+    /** NOVO/REFATORADO: Fecha o chamado pelo próprio cliente (validando a solução). */
     async fecharChamado(id) {
         document.getElementById('alert').innerHTML = '<div class="card info">Fechando chamado...</div>';
         try {
-            // Chamada à API para fechar o chamado (status: 'Fechado')
             await apiFecharChamado(id);
-
             document.getElementById('alert').innerHTML = '<div class="card success">✅ Chamado validado e **FECHADO** com sucesso.</div>';
-            // Recarrega o componente para mostrar os botões de Feedback do Cliente
             setTimeout(() => { this.render(); }, 1500);
         } catch (error) {
             document.getElementById('alert').innerHTML = `<div class="card error">❌ Falha ao fechar: ${error.message}</div>`;
         }
     }
 
-    /**
-     * NOVO: Cliente concorda com a solução: registra a concordância e **mantém o status 'Fechado'**.
-     * Conectado ao 'btnConcordar'.
-     */
+    /** Cliente concorda com a solução: registra a concordância e mantém o status 'Fechado'. */
     async concordarSolucao(id) {
         document.getElementById('alert').innerHTML = '<div class="card info">Registrando concordância...</div>';
         try {
-            // Chamada à API para registrar a validação final (mantém o status 'Fechado')
             await apiConcordarSolucao(id);
-
             document.getElementById('alert').innerHTML = '<div class="card success">👍 Sua validação foi registrada. O chamado permanece **Fechado**.</div>';
             setTimeout(() => { this.render(); }, 1500);
         } catch (error) {
@@ -241,18 +265,12 @@ export class DetalhesIAView {
         }
     }
 
-    /**
-     * NOVO: Cliente discorda da solução final e **reabre o chamado**.
-     * Conectado ao 'btnReabrir'.
-     */
+    /** Cliente discorda da solução final e reabre o chamado. */
     async reabrirChamado(id) {
         document.getElementById('alert').innerHTML = '<div class="card info">Reabrindo chamado...</div>';
         try {
-            // Chamada à API para mudar status para 'Aberto' e remover técnico
             await apiReabrirChamado(id);
-
             document.getElementById('alert').innerHTML = '<div class="card warning">🔄 Chamado **REABERTO** com sucesso. Um novo técnico será atribuído.</div>';
-            // Recarrega o componente para refletir o novo status ('Aberto') e mostrar os botões iniciais
             setTimeout(() => { this.render(); }, 1500);
         } catch (error) {
             document.getElementById('alert').innerHTML = `<div class="card error">❌ Falha ao reabrir: ${error.message}</div>`;

@@ -1,4 +1,5 @@
 //rotas para chamado
+const { gerarRespostaIA } = require('../services/iaService.js');
 
 const express = require('express');
 const router = express.Router();
@@ -312,16 +313,20 @@ router.post('/', async (req, res) => {
             usuarios,
             frequencia
         } = req.body;
+        
         const pool = await getPool();
         const clienteId = req.session?.usuario?.id;
         const prioridadePadrao = 'B';
         const dataProblemaInput = req.body.dataProblema;
-        const dataAbertura = new Date(req.body.dataAbertura); // A data de abertura deve ser válida
+        const dataAbertura = new Date(req.body.dataAbertura); 
 
         // Se o usuário não preencheu a data do problema, use a data de abertura.
         const dataProblemaFormatada = dataProblemaInput ? new Date(dataProblemaInput) : dataAbertura;
 
-        // Insere o novo chamado no banco de dados.
+        // 🚨 PASSO 1: GERAR RESPOSTA DA IA (Precisa de 'await')
+        const solucaoIA = await gerarRespostaIA(categoria, descricao, titulo); 
+
+        // 🚨 PASSO 2: INSERIR A SOLUÇÃO DA IA NO BANCO DE DADOS
         const result = await pool.request()
             .input('clienteId', sql.Int, clienteId)
             .input('titulo', sql.VarChar(255), titulo)
@@ -329,30 +334,32 @@ router.post('/', async (req, res) => {
             .input('descricao', sql.VarChar(sql.MAX), descricao)
             .input('status', sql.VarChar(20), status || 'Aberto')
             .input('dataAbertura', sql.DateTime, new Date(dataAbertura))
-            .input('dataProblema', sql.DateTime, dataProblemaFormatada) // ATENÇÃO: Use sql.DateTime se a coluna for DATETIME
-
-            // NOVOS CAMPOS INCLUÍDOS
+            .input('dataProblema', sql.DateTime, dataProblemaFormatada)
             .input('impacto', sql.VarChar(50), impacto || null)
             .input('usuarios', sql.VarChar(50), usuarios || null)
             .input('frequencia', sql.VarChar(50), frequencia || null)
             .input('prioridade', sql.Char(1), prioridadePadrao)
+            // 🚨 NOVO INPUT: Solução da IA
+            .input('solucaoIA', sql.VarChar(1000), solucaoIA) 
 
             .query(`
                 INSERT INTO Chamado (
-                    clienteId_Cham,titulo_Cham, status_Cham, dataAbertura_Cham, categoria_Cham, descricao_Cham,
-                    dataProblema, impacto_Cham, usuarios_Cham, frequencia_Cham, prioridade_Cham
+                    clienteId_Cham, titulo_Cham, status_Cham, dataAbertura_Cham, categoria_Cham, descricao_Cham,
+                    dataProblema, impacto_Cham, usuarios_Cham, frequencia_Cham, prioridade_Cham, 
+                    solucaoIA_Cham  
                 )
                 VALUES (
                     @clienteId, @titulo, @status, @dataAbertura, @categoria, @descricao,
-                    @dataProblema, @impacto, @usuarios, @frequencia, @prioridade
+                    @dataProblema, @impacto, @usuarios, @frequencia, @prioridade, 
+                    @solucaoIA
                 )
             `);
 
+        // 🚨 PASSO 3: RETORNAR O CHAMADO INSERIDO (Incluindo a Solução da IA)
         const insertedChamado = await pool.request()
             .query(`
                 SELECT TOP 1 
-                    id_Cham, status_Cham, dataAbertura_Cham, titulo_Cham, prioridade_Cham, categoria_Cham
-                    -- Você pode selecionar todas as colunas que precisa aqui
+                    id_Cham, status_Cham, dataAbertura_Cham, titulo_Cham, prioridade_Cham, categoria_Cham, solucaoIA_Cham
                 FROM Chamado
                 ORDER BY id_Cham DESC
             `);
@@ -362,7 +369,6 @@ router.post('/', async (req, res) => {
             return res.status(201).json(insertedChamado.recordset[0]);
         }
 
-        // Se por algum motivo o INSERT funcionou mas o SELECT não encontrou nada (improvável)
         throw new Error("Chamado inserido, mas não pôde ser recuperado.");
     } catch (error) {
         console.error('Erro ao criar chamado:', error);

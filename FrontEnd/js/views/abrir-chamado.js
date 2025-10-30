@@ -1,4 +1,5 @@
 import { apiCreateChamado } from '../api/chamados.js';
+import { showConfirmationModal } from '../utils/feedbackmodal.js';
 
 /**
  * Classe responsável por gerenciar a view e a lógica do formulário Abrir Chamado.
@@ -80,7 +81,7 @@ class AbrirChamadoView {
             // Usa .bind(this) para manter o contexto da classe AbrirChamadoView
             form.addEventListener('submit', this.handleSubmit.bind(this));
         }
-        
+
         // Lógica para desfazer a seleção do rádio
         let ultimoClicado = null;
         document.querySelectorAll('input[type="radio"]').forEach(radio => {
@@ -127,30 +128,46 @@ class AbrirChamadoView {
         const dataProblema = f.get('data');
 
         if (!this.validateDataProblema(dataProblema)) {
-            // Este erro é capturado ANTES de ir para a API
             this.showAlert('❌ A data do problema não pode ser futura.', true);
             return;
         }
 
+        // 1. CONFIRMAÇÃO: Exibe o modal primeiro
+        const confirmed = await showConfirmationModal(
+            "Confirmar Abertura de Chamado",
+            "Deseja realmente enviar este chamado? Certifique-se de que todos os dados estão corretos."
+        );
+
+        if (!confirmed) {
+            console.log("Abertura de chamado cancelada pelo usuário.");
+            // 🚨 Limpa qualquer alerta de erro anterior ao cancelar
+            this.showAlert('', false); 
+            return; 
+        }
+        
+        // 2. 🚨 FEEDBACK: Exibe a mensagem de loading AGORA, após a confirmação.
+        this.showAlert('⏳ Enviando chamado...', false);
+        
         try {
             const novoChamado = {
-                // ... (dados do formulário) ...
                 titulo: f.get('titulo'),
                 categoria: f.get('categoria'),
                 descricao: f.get('descricao'),
-                status: 'Aberto',
+                
+                // Campos específicos
                 dataAbertura: new Date().toISOString(),
-                dataProblema: dataProblema,
+                dataProblema: dataProblema || null, 
+                status: 'Aberto', 
+                
+                // Campos de rádio/select
                 impacto: f.get('impacto'),
                 usuarios: f.get('usuarios'),
                 frequencia: f.get('frequencia')
             };
+            
 
-            // Exemplo de feedback enquanto espera
-            this.showAlert('⏳ Enviando chamado...', false); 
-            
             await apiCreateChamado(novoChamado);
-            
+
             // Sucesso
             this.showAlert('✅ Chamado aberto com sucesso.', false);
             form.reset();
@@ -162,9 +179,9 @@ class AbrirChamadoView {
             // 1. Erros lançados pela função API (incluindo erros 400/500 do backend)
             if (error instanceof Error) {
                 // Usamos a mensagem de erro que a API extraiu do backend.
-                mensagemUsuario = error.message; 
+                mensagemUsuario = error.message;
             }
-            
+
             // 2. Erros de rede (como API fora do ar)
             if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
                 mensagemUsuario = '🚨 Erro de conexão: O servidor de chamados está inacessível.';

@@ -63,16 +63,30 @@ export function renderDescricaoCurta(descricao, chamadoId) {
 }
 
 export function mostrarDescricaoCompleta(chamadoId) {
-    // 1. Acessa a lista de dados da instância global da sua view (ChamadoManager)
-    const manager = window.chamadoManager;
+    // 1. 🚨 CORREÇÃO PRINCIPAL: Tenta encontrar a instância ativa (Manager ou View)
+    const activeView = window.chamadoManager || window.meusChamadosView;
     
+    if (!activeView) {
+        alert("Erro: O gerenciador de chamados não foi inicializado.");
+        return;
+    }
+    
+    // O array de dados pode ser 'chamadosData' (em ChamadoManager) ou 'chamados' (em MeusChamadosView)
+    // Vamos padronizar para procurar 'chamadosData' primeiro, mas fallback para 'chamados'
+    const dataArray = activeView.chamadosData || activeView.chamados;
+    
+    if (!dataArray || dataArray.length === 0) {
+        alert("Dados do chamado não carregados.");
+        return;
+    }
+
     // 2. Encontra o objeto do chamado pelo ID
-    const chamado = manager.chamadosData.find(c => c.id_Cham == chamadoId);
+    const chamado = dataArray.find(c => c.id_Cham == chamadoId); 
     
     if (chamado && chamado.descricao_Cham) {
-        alert(`Descrição Completa do Chamado #${chamadoId}:\n\n${chamado.descricao_Cham}`);
+        alert(`Descrição Completa do Chamado #${chamadoId} (${chamado.titulo_Cham || ''}):\n\n${chamado.descricao_Cham}`);
     } else {
-        alert("Descrição não encontrada.");
+        alert("Descrição não encontrada nos dados carregados.");
     }
 }
 
