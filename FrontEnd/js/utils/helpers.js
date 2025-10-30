@@ -25,7 +25,14 @@ export function renderBadge(status) {
  * Converte código de prioridade em texto legível
  */
 export function getPrioridadeTexto(prioridade) {
-    return PRIORIDADE_MAP[prioridade] || prioridade;
+    const priorityMap = {
+        A: { text: 'Alta', class: 'danger' },
+        M: { text: 'Média', class: 'warning' },
+        B: { text: 'Baixa', class: 'success' }
+    };
+    const p = priorityMap[prioridade] || { text: prioridade, class: 'secondary' };
+
+    return `<span class="badge ${p.class}">${p.text}</span>`;
 }
 
 /**

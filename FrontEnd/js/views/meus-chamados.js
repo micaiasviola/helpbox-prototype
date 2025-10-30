@@ -48,7 +48,7 @@ class MeusChamadosView {
                 <thead>
                     <tr>
                         <th>ID Chamado</th>
-                        <th>Cliente</th> 
+                        
                         <th>Descrição</th>
                         <th>Status</th>
                         <th>Prioridade</th>
@@ -243,7 +243,7 @@ class MeusChamadosView {
             return `
                  <tr>
                     <td>${chamado.id_Cham}</td>
-                     <td>${nomeCompleto || chamado.clienteId_Cham}</td> 
+                   
                     <td>${renderDescricaoCurta(chamado.descricao_Cham, chamado.id_Cham)}</td>                     <td>${renderBadge(chamado.status_Cham)}</td>
                      <td>${getPrioridadeTexto(chamado.prioridade_Cham)}</td>
                      <td>${chamado.categoria_Cham}</td>
