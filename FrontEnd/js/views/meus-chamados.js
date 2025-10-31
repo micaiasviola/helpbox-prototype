@@ -158,7 +158,7 @@ class MeusChamadosView {
         }
     }
 
-    // 🚨 drawChamados / applyFilters foi removido, pois a busca é toda no servidor agora.
+    
 
     getActionButton(chamadoId, status, clienteId_Cham) {
         const statusLower = status.toLowerCase();
