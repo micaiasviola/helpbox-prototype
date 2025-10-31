@@ -498,7 +498,16 @@ html, body {
   cursor: not-allowed;
 }
 
-
+.pagination-ellipsis {
+    /* Mantenha o seu padding e cor */
+    padding: 6px 4px;
+    color: var(--color-muted);
+    font-size: 14px;
+    
+    /* 🚨 NOVO: Garante que as reticências fiquem na mesma linha e alinhadas */
+    display: inline-flex; 
+    align-items: center;
+}
 
 
 /* ===============================
