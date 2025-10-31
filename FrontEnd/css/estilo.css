@@ -147,7 +147,7 @@ html, body {
   background: #fff;
   padding: 12px 20px;
   display: flex;
-  justify-content: space-between;
+  justify-content: end;
   align-items: center;
   box-shadow: 0 2px 6px rgba(0,0,0,0.08);
   position: sticky;
@@ -524,6 +524,7 @@ html, body {
 
   .topbar {
     padding: 10px 16px;
+    align-items: end;
   }
 }
 
