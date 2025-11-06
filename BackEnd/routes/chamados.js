@@ -12,14 +12,14 @@ const verificarAdm = require('../middlewares/verificarADM.js');
  */
 function getDynamicWhereClause(nivelAcesso, fullWhereClause) {
     let baseWhere = fullWhereClause;
-    
+
     // Inicia a cláusula de escopo
     let scopeClause = "";
 
     if (nivelAcesso === 1) {
         // NÍVEL 1 (CLIENTE): Vê APENAS o que abriu.
         scopeClause = `C.clienteId_Cham = @usuarioId`;
-    } 
+    }
     else if (nivelAcesso === 2) {
         // NÍVEL 2 (TÉCNICO): Vê o que está resolvendo OU o que ele abriu.
         scopeClause = `C.tecResponsavel_Cham = @usuarioId OR C.clienteId_Cham = @usuarioId`;
@@ -29,12 +29,12 @@ function getDynamicWhereClause(nivelAcesso, fullWhereClause) {
         // Vê APENAS os que ele está resolvendo (como tec) OU os que ele abriu (como cliente).
         scopeClause = `C.tecResponsavel_Cham = @usuarioId OR C.clienteId_Cham = @usuarioId`;
     }
-    
+
     // Se a cláusula de escopo foi definida (para qualquer nível), aplicamos o filtro pessoal.
     if (scopeClause) {
-         baseWhere += ` AND (${scopeClause})`;
+        baseWhere += ` AND (${scopeClause})`;
     }
-    
+
     return baseWhere;
 }
 
@@ -47,41 +47,41 @@ router.get('/meus', async (req, res) => {
     const usuarioId = req.session?.usuario?.id;
     const nivelAcesso = req.session?.usuario?.nivel_acesso;
 
-    if (!usuarioId) { 
+    if (!usuarioId) {
         return res.status(401).json({ error: 'Usuário não autenticado.' });
     }
-    
+
     // Garante que o nível de acesso é válido (1, 2, ou 3)
     if (nivelAcesso < 1 || nivelAcesso > 3) {
         return res.status(403).json({ error: 'Nível de acesso inválido para esta rota.' });
     }
-    
-    // --- PREPARAÇÃO DOS PARÂMETROS ---
-    const page = parseInt(req.query.page) || 1; 
-    const pageSize = parseInt(req.query.pageSize) || 6;
-    const searchTerm = req.query.q || ''; 
-    const statusFilter = req.query.status || ''; 
 
-    const offset = (page - 1) * pageSize; 
-    
+    // --- PREPARAÇÃO DOS PARÂMETROS ---
+    const page = parseInt(req.query.page) || 1;
+    const pageSize = parseInt(req.query.pageSize) || 6;
+    const searchTerm = req.query.q || '';
+    const statusFilter = req.query.status || '';
+
+    const offset = (page - 1) * pageSize;
+
     // Cláusula inicial (1=1 é obrigatória para o WHERE)
-    let fullWhereClause = `1 = 1`; 
-    
+    let fullWhereClause = `1 = 1`;
+
     if (statusFilter) fullWhereClause += ` AND C.status_Cham = @statusFilter`;
     if (searchTerm) fullWhereClause += ` AND (C.titulo_Cham LIKE @searchTerm OR C.descricao_Cham LIKE @searchTerm)`;
 
     // 🚨 APLICAÇÃO DO ESCOPO DE SEGURANÇA
     const scopedWhereClause = getDynamicWhereClause(nivelAcesso, fullWhereClause);
-    
+
     try {
-        const pool = await getPool(); 
+        const pool = await getPool();
         const request = pool.request()
             .input('usuarioId', sql.Int, usuarioId)
             .input('offset', sql.Int, offset)
             .input('pageSize', sql.Int, pageSize)
             .input('statusFilter', sql.NVarChar, statusFilter)
             .input('searchTerm', sql.NVarChar, `%${searchTerm}%`);
-            
+
         // 🚨 Query unificada: 
         const querySQL = `
             SELECT C.*, U.nome_User, U.sobrenome_User 
@@ -122,15 +122,15 @@ router.get('/meus', async (req, res) => {
 router.get('/tecnico', async (req, res) => {
     const nivelAcesso = req.session?.usuario?.nivel_acesso;
 
-    if (nivelAcesso < 2) { 
+    if (nivelAcesso < 2) {
         return res.status(403).json({ error: 'Acesso negado. Necessário nível técnico.' });
     }
-    
+
     // Parâmetros de Paginação
-    const page = parseInt(req.query.page) || 1; 
-    const pageSize = parseInt(req.query.pageSize) || 5; 
-    const offset = (page - 1) * pageSize; 
-    
+    const page = parseInt(req.query.page) || 1;
+    const pageSize = parseInt(req.query.pageSize) || 5;
+    const offset = (page - 1) * pageSize;
+
     // Cláusula de filtro (estrita para chamados livres)
     const baseWhereClause = `tecResponsavel_Cham IS NULL AND status_Cham = 'Em andamento'`;
 
@@ -152,7 +152,7 @@ router.get('/tecnico', async (req, res) => {
             OFFSET @offset ROWS
             FETCH NEXT @pageSize ROWS ONLY;
         `;
-        
+
         // 2. SELECT do total de registros
         const countQuery = `
             SELECT COUNT(id_Cham) AS totalCount 
@@ -183,14 +183,14 @@ router.get('/tecnico', async (req, res) => {
 
 router.get('/', verificarAdm, async (req, res) => {
     // Parâmetros de Paginação e Filtro
-    const page = parseInt(req.query.page) || 1; 
+    const page = parseInt(req.query.page) || 1;
     const pageSize = parseInt(req.query.pageSize) || 5; // Usa 5 por padrão
-    const searchTerm = req.query.q || ''; 
-    const statusFilter = req.query.status || ''; 
-    const offset = (page - 1) * pageSize; 
+    const searchTerm = req.query.q || '';
+    const statusFilter = req.query.status || '';
+    const offset = (page - 1) * pageSize;
 
     // Cláusula de filtro
-    let fullWhereClause = `1 = 1`; 
+    let fullWhereClause = `1 = 1`;
     if (statusFilter) fullWhereClause += ` AND C.status_Cham = @statusFilter`;
     if (searchTerm) fullWhereClause += ` AND (C.titulo_Cham LIKE @searchTerm OR C.descricao_Cham LIKE @searchTerm)`;
 
@@ -218,14 +218,14 @@ router.get('/', verificarAdm, async (req, res) => {
             OFFSET @offset ROWS
             FETCH NEXT @pageSize ROWS ONLY;
         `;
-        
+
         // 2. SELECT do total de registros
         const countQuery = `
             SELECT COUNT(C.id_Cham) AS totalCount 
             FROM Chamado AS C
             WHERE ${fullWhereClause};
         `;
-        
+
         // Executa as duas queries juntas
         const result = await request.query(paginatedQuery + countQuery);
 
@@ -313,20 +313,20 @@ router.post('/', async (req, res) => {
             usuarios,
             frequencia
         } = req.body;
-        
+
         const pool = await getPool();
         const clienteId = req.session?.usuario?.id;
         const prioridadePadrao = 'B';
         const dataProblemaInput = req.body.dataProblema;
-        const dataAbertura = new Date(req.body.dataAbertura); 
+        const dataAbertura = new Date(req.body.dataAbertura);
 
         // Se o usuário não preencheu a data do problema, use a data de abertura.
         const dataProblemaFormatada = dataProblemaInput ? new Date(dataProblemaInput) : dataAbertura;
 
-        // 🚨 PASSO 1: GERAR RESPOSTA DA IA (Precisa de 'await')
-        const solucaoIA = await gerarRespostaIA(categoria, descricao, titulo); 
 
-        // 🚨 PASSO 2: INSERIR A SOLUÇÃO DA IA NO BANCO DE DADOS
+        const solucaoIA = await gerarRespostaIA(categoria, descricao, titulo);
+
+
         const result = await pool.request()
             .input('clienteId', sql.Int, clienteId)
             .input('titulo', sql.VarChar(255), titulo)
@@ -339,8 +339,8 @@ router.post('/', async (req, res) => {
             .input('usuarios', sql.VarChar(50), usuarios || null)
             .input('frequencia', sql.VarChar(50), frequencia || null)
             .input('prioridade', sql.Char(1), prioridadePadrao)
-            // 🚨 NOVO INPUT: Solução da IA
-            .input('solucaoIA', sql.VarChar(1000), solucaoIA) 
+
+            .input('solucaoIA', sql.VarChar(1000), solucaoIA)
 
             .query(`
                 INSERT INTO Chamado (
@@ -355,7 +355,7 @@ router.post('/', async (req, res) => {
                 )
             `);
 
-        // 🚨 PASSO 3: RETORNAR O CHAMADO INSERIDO (Incluindo a Solução da IA)
+
         const insertedChamado = await pool.request()
             .query(`
                 SELECT TOP 1 
@@ -377,19 +377,18 @@ router.post('/', async (req, res) => {
 });
 
 
-// PUT atualizar chamado (Rota corrigida para atribuição do técnico)
+// PUT atualizar chamado 
 
 router.put('/:id', async (req, res) => {
     try {
         const { id } = req.params;
-        const { 
-            status_Cham, 
-            dataFechamento_Cham, 
+        const {
+            status_Cham,
+            dataFechamento_Cham,
             tecResponsavel_Cham,
-            // 🚨 CAMPOS DE SOLUÇÃO E DADOS DE FECHAMENTO ADICIONADOS
-            solucaoTec_Cham, 
+            solucaoTec_Cham,
             solucaoFinal_Cham
-        } = req.body; 
+        } = req.body;
 
         const pool = await getPool();
         let query = 'UPDATE Chamado SET ';
@@ -407,27 +406,23 @@ router.put('/:id', async (req, res) => {
             }
         };
 
-        // 1. Atualizar STATUS
+
         addField('status_Cham', status_Cham, sql.VarChar(20));
-        
-        // 2. Atualizar TÉCNICO (usando lógica anterior)
+
+
         if (typeof tecResponsavel_Cham !== 'undefined') {
             const isNull = tecResponsavel_Cham === null || tecResponsavel_Cham === 'null';
             addField('tecResponsavel_Cham', isNull ? null : parseInt(tecResponsavel_Cham), sql.Int);
         }
 
-        // 3. 🛠️ Adicionar SOLUÇÕES (Usado no "Salvar Rascunho" e "Finalizar")
-        // O tipo VarChar(1000) deve corresponder ao seu esquema
         addField('solucaoTec_Cham', solucaoTec_Cham, sql.VarChar(1000));
         addField('solucaoFinal_Cham', solucaoFinal_Cham, sql.VarChar(1000));
 
-        // 4. Adicionar DATA DE FECHAMENTO (Usado no "Finalizar")
-        // Usamos sql.DateTime ou sql.Date dependendo do seu esquema (DateTime é mais comum)
-        addField('dataFechamento_Cham', dataFechamento_Cham, sql.DateTime); 
-        
+        addField('dataFechamento_Cham', dataFechamento_Cham, sql.DateTime);
+
         // Se nenhum campo válido foi enviado
         if (inputs.length === 0) {
-             return res.status(400).json({ error: 'Nenhum campo de atualização válido fornecido.' });
+            return res.status(400).json({ error: 'Nenhum campo de atualização válido fornecido.' });
         }
 
         // Finaliza a query
@@ -441,7 +436,7 @@ router.put('/:id', async (req, res) => {
 
         res.json({ success: true, message: 'Chamado atualizado com sucesso.' });
     } catch (error) {
-        // 🚨 MUITO IMPORTANTE: Logar o erro REAL do SQL Server
+
         console.error('Erro ao executar UPDATE SQL:', error);
         res.status(500).json({ error: 'Erro interno do servidor ao fechar o chamado.' });
     }
@@ -499,7 +494,7 @@ router.put('/fechar/:id', async (req, res) => {
 
     try {
         const pool = await getPool();
-        
+
         // 1. Opcional: Verificar se o usuário é o cliente original
         const checkQuery = `SELECT clienteId_Cham, status_Cham FROM Chamado WHERE id_Cham = @id`;
         const checkResult = await pool.request().input('id', sql.Int, chamadoId).query(checkQuery);
@@ -507,9 +502,9 @@ router.put('/fechar/:id', async (req, res) => {
         if (checkResult.recordset.length === 0) {
             return res.status(404).json({ error: 'Chamado não encontrado.' });
         }
-        
+
         const chamadoInfo = checkResult.recordset[0];
-        
+
         if (chamadoInfo.clienteId_Cham !== usuarioId) {
             return res.status(403).json({ error: 'Acesso negado. Apenas o cliente pode fechar este chamado.' });
         }
@@ -543,9 +538,9 @@ router.put('/reabrir/:id', async (req, res) => {
     const { id } = req.params;
     const chamadoId = parseInt(id);
     const usuarioId = req.session?.usuario?.id;
-    
+
     // Status de reabertura (volta para o estado inicial para triagem)
-    const STATUS_REABERTO = 'Em andamento'; 
+    const STATUS_REABERTO = 'Em andamento';
 
     if (isNaN(chamadoId) || !usuarioId) {
         return res.status(400).json({ error: 'ID de chamado inválido ou usuário não identificado.' });
@@ -553,7 +548,7 @@ router.put('/reabrir/:id', async (req, res) => {
 
     try {
         const pool = await getPool();
-        
+
         // 1. Opcional: Verificar se o usuário é o cliente original e se o status é 'Fechado'
         const checkQuery = `SELECT clienteId_Cham, status_Cham FROM Chamado WHERE id_Cham = @id`;
         const checkResult = await pool.request().input('id', sql.Int, chamadoId).query(checkQuery);
@@ -561,14 +556,14 @@ router.put('/reabrir/:id', async (req, res) => {
         if (checkResult.recordset.length === 0) {
             return res.status(404).json({ error: 'Chamado não encontrado.' });
         }
-        
+
         const chamadoInfo = checkResult.recordset[0];
-        
+
         if (chamadoInfo.clienteId_Cham !== usuarioId || chamadoInfo.status_Cham !== 'Fechado') {
-             // Retorna erro ou ignora, dependendo da política. Aqui, retornamos 403.
-             return res.status(403).json({ error: 'A reabertura só é permitida pelo cliente e apenas quando o status atual for Fechado.' });
+            // Retorna erro ou ignora, dependendo da política. Aqui, retornamos 403.
+            return res.status(403).json({ error: 'A reabertura só é permitida pelo cliente e apenas quando o status atual for Fechado.' });
         }
-        
+
         // 2. Atualiza o status, remove o técnico e limpa a data de fechamento
         const query = `
             UPDATE Chamado 
@@ -604,18 +599,18 @@ router.put('/concordar/:id', async (req, res) => {
     if (isNaN(chamadoId) || !usuarioId) {
         return res.status(400).json({ error: 'ID de chamado inválido ou usuário não identificado.' });
     }
-    
+
     try {
         const pool = await getPool();
-        
+
         // Opcional: Verificar se o usuário é o cliente original e se o status é 'Fechado'
         const checkQuery = `SELECT clienteId_Cham, status_Cham FROM Chamado WHERE id_Cham = @id`;
         const checkResult = await pool.request().input('id', sql.Int, chamadoId).query(checkQuery);
-        
+
         if (checkResult.recordset.length === 0 || checkResult.recordset[0].clienteId_Cham !== usuarioId) {
-             return res.status(403).json({ error: 'Acesso negado ou chamado não encontrado.' });
+            return res.status(403).json({ error: 'Acesso negado ou chamado não encontrado.' });
         }
-        
+
         // Apenas adiciona uma nota de registro ou atualiza um campo de metadado
         const query = `
             UPDATE Chamado 
@@ -633,6 +628,50 @@ router.put('/concordar/:id', async (req, res) => {
     } catch (error) {
         console.error('Erro ao registrar concordância:', error);
         res.status(500).json({ error: 'Erro interno ao registrar concordância.' });
+    }
+});
+
+router.delete('/:id', verificarAdm, async (req, res) => {
+    const { id } = req.params;
+    const chamadoId = parseInt(id);
+
+    if (isNaN(chamadoId)) {
+        return res.status(400).json({ error: 'ID de chamado inválido. Deve ser um número.' });
+    }
+
+
+    try {
+        const pool = await getPool();
+
+        const checkStatus = await pool.request()
+            .input('id', sql.Int, chamadoId)
+            .query(`SELECT status_Cham FROM Chamado WHERE id_Cham = @id`);
+
+        if (checkStatus.recordset.length === 0) {
+            return res.status(404).json({ error: 'Chamado não encontrado.' });
+        }
+
+        if (checkStatus.recordset[0].status_Cham !== 'Fechado') {
+            return res.status(400).json({ error: 'A exclusão é permitida apenas para chamados com status "Fechado".' });
+        }
+
+
+        const deleteResult = await pool.request()
+            .input('id', sql.Int, chamadoId)
+            .query(`DELETE FROM Chamado WHERE id_Cham = @id`);
+
+        if (deleteResult.rowsAffected[0] === 0) {
+            return res.status(404).json({ error: 'Chamado não encontrado ou já excluído.' });
+        }
+
+        res.status(200).json({ success: true, message: `Chamado ID ${chamadoId} excluído com sucesso.` });
+
+    } catch (error) {
+        console.error('Erro ao excluir chamado (ADM):', error);
+        if (error.code && error.code.startsWith('ER_ROW_IS_REFERENCED')) {
+            return res.status(409).json({ error: 'Não foi possível excluir. O chamado possui dados dependentes (ex: histórico) que precisam ser removidos primeiro.' });
+        }
+        res.status(500).json({ error: 'Erro interno do servidor ao excluir chamado.' });
     }
 });
 

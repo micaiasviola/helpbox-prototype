@@ -10,7 +10,7 @@
  */
 
 // --- Importações ---
-import { apiGetChamados, apiGetChamadosTecnico, apiUpdateChamado } from '../api/chamados.js';
+import { apiGetChamados, apiGetChamadosTecnico, apiUpdateChamado, apiDeleteChamado } from '../api/chamados.js';
 import { renderBadge, getPrioridadeTexto, formatDate, renderDescricaoCurta } from '../utils/helpers.js';
 import { iniciarSolucao } from './solucionar-chamado-detalhe.js';
 import { store } from '../store.js';
@@ -167,53 +167,62 @@ class ChamadoManager extends BaseListView {
     }
 
     /**
-     * Helper que contém a lógica de negócios para decidir qual botão
-     * de ação exibir para o técnico/admin.
-     * @param {Object} c - O objeto chamado.
-     * @returns {string} O HTML do botão.
-     * @private
-     */
-    getActionButton(c) {
-        const isAssignedToMe = c.tecResponsavel_Cham === this.usuarioLogadoId;
-        const isInProgress = c.status_Cham === STATUS_EM_ANDAMENTO;
-        const isClosed = c.status_Cham === 'Fechado';
-        const isAuthor = c.clienteId_Cham === this.usuarioLogadoId;
+     * Helper que contém a lógica de negócios para decidir qual botão
+     * de ação exibir para o técnico/admin.
+     * @param {Object} c - O objeto chamado.
+     * @returns {string} O HTML dos botões.
+     * @private
+     */
+    getActionButton(c) {
+        const isAssignedToMe = c.tecResponsavel_Cham === this.usuarioLogadoId;
+        const isInProgress = c.status_Cham === STATUS_EM_ANDAMENTO;
+        const isClosed = c.status_Cham === 'Fechado'; // <-- Importante
+        const isAuthor = c.clienteId_Cham === this.usuarioLogadoId;
+        
+        // Checagem de Nível de Acesso para ADMIN
+        const isAdmin = this.nivelAcesso === NIVEL_ADMIN;
+        
+        // 1. Chamado fechado
+        if (isClosed) {
+            // Se for ADM, substitui o botão 'Fechado' por 'Excluir'.
+            if (isAdmin) {
+                // Botão Excluir (Apenas ADM E se o status for 'Fechado')
+                // Use 'danger' para indicar ação destrutiva
+                return `<button class="btn danger" data-action="delete" data-id="${c.id_Cham}" title="Excluir Chamado (Apenas ADM)">🗑️ Excluir</button>`;
+            } else {
+                // Para Técnicos (Nível 2), continua mostrando "Fechado"
+                return `<button class="btn secondary" onclick="detalharChamadoIA(${c.id_Cham})">Fechado</button>`;
+            }
+        }
 
-        // 1. Chamado fechado
-        if (isClosed) {
-            // 'detalharChamadoIA' é uma função global exposta pelo main.js
-            return `<button class="btn secondary" onclick="detalharChamadoIA(${c.id_Cham})">Fechado</button>`;
-        }
+        // 2. Chamado "Em Andamento" (Lógica original permanece)
+        if (isInProgress) {
+            if (isAssignedToMe) {
+                // Está comigo, posso continuar a solução
+                return `<button class="btn btn-third" data-action="continue" data-id="${c.id_Cham}">Continuar Solucionando</button>`;
+            } 
+            
+            if (!c.tecResponsavel_Cham) {
+                // Regra de negócio: Se o usuário logado for o autor, ele não pode "pegar" o próprio chamado.
+                if (isAuthor) {
+                    return '<button class="btn btn-secondary" disabled>Você é o Autor</button>';
+                }
+                // Está "Em Andamento" mas livre (ex: fila da IA), pode pegar.
+                return `<button class="btn btn-primary" data-action="take" data-id="${c.id_Cham}">🛠️ Solucionar Chamado</button>`;
+            }
+            
+            // Está em andamento E com outro técnico
+            return '<button class="btn btn-secondary" disabled>Em Andamento (Atribuído)</button>';
+        }
+        
+        // 3. Chamado "Aberto" (Lógica original permanece)
+        if (c.status_Cham === 'Aberto') {
+            return '<button class="btn btn-secondary" disabled>Aguardando IA/Cliente</button>';
+        }
 
-        // 2. Chamado "Em Andamento"
-        if (isInProgress) {
-            if (isAssignedToMe) {
-                // Está comigo, posso continuar a solução
-                return `<button class="btn btn-third" data-action="continue" data-id="${c.id_Cham}">Continuar Solucionando</button>`;
-            } 
-            
-            if (!c.tecResponsavel_Cham) {
-                // Regra de negócio: Se o usuário logado for o autor, ele não pode "pegar" o próprio chamado.
-                if (isAuthor) {
-                    return '<button class="btn btn-secondary" disabled>Você é o Autor</button>';
-                }
-                // Está "Em Andamento" mas livre (ex: fila da IA), pode pegar.
-                return `<button class="btn btn-primary" data-action="take" data-id="${c.id_Cham}">🛠️ Solucionar Chamado</button>`;
-            }
-            
-            // Está em andamento E com outro técnico
-            return '<button class="btn btn-secondary" disabled>Em Andamento (Atribuído)</button>';
-        }
-        
-        // 3. Chamado "Aberto"
-        // (Status "Aberto" significa que ainda está com o cliente ou IA, antes de ir para a fila "Em Andamento")
-        if (c.status_Cham === 'Aberto') {
-            return '<button class="btn btn-secondary" disabled>Aguardando IA/Cliente</button>';
-        }
-
-        // Fallback
-        return '';
-    }
+        // Fallback
+        return '';
+    }
 
     // =================================================================
     // --- 3. Métodos de Gerenciamento de Dados ---
@@ -305,51 +314,66 @@ class ChamadoManager extends BaseListView {
     }
 
     /**
-     * Manipulador central para todos os cliques nos botões de ação da tabela.
-     * @param {Event} e - O objeto de evento do clique.
-     * @private
-     */
-    async handleChamadoActions(e) {
-        // Encontra o botão mais próximo que foi clicado
-        const btn = e.target.closest('button');
-        if (!btn) return; // O clique não foi em um botão
+     * Manipulador central para todos os cliques nos botões de ação da tabela.
+     * @param {Event} e - O objeto de evento do clique.
+     * @private
+     */
+    async handleChamadoActions(e) {
+        // Encontra o botão mais próximo que foi clicado
+        const btn = e.target.closest('button');
+        if (!btn) return; // O clique não foi em um botão
 
-        const id = +btn.dataset.id; // Converte o ID para número
-        const action = btn.dataset.action;
+        const id = +btn.dataset.id; // Converte o ID para número
+        const action = btn.dataset.action;
 
-        if (!action || !id) return; // Botão sem ação ou ID (ex: "Fechado", "Aguardando")
+        if (!action || !id) return; // Botão sem ação ou ID
 
-        try {
-            if (action === 'take') {
-                // Ação: Pegar um chamado da fila
-                const updatePayload = {
-                    status_Cham: STATUS_EM_ANDAMENTO, // Define o status
-                    tecResponsavel_Cham: this.usuarioLogadoId // Atribui a si mesmo
-                };
+        try {
+            if (action === 'take') {
+                // Ação: Pegar um chamado da fila
+                const updatePayload = {
+                    status_Cham: STATUS_EM_ANDAMENTO, // Define o status
+                    tecResponsavel_Cham: this.usuarioLogadoId // Atribui a si mesmo
+                };
 
-                await apiUpdateChamado(id, updatePayload);
-                alert(`Chamado ${id} atribuído a você!`);
-                iniciarSolucao(id); // Navega para a tela de detalhes da solução
-                return; // Encerra a execução aqui
-            }
+                await apiUpdateChamado(id, updatePayload);
+                alert(`Chamado ${id} atribuído a você!`);
+                iniciarSolucao(id); // Navega para a tela de detalhes da solução
+                return; // Encerra a execução aqui
+            }
+            
+            if (action === 'continue') {
+                // Ação: Continuar um chamado que já é seu
+                iniciarSolucao(id); // Apenas navega para a tela de solução
+                return; // Encerra
+            }
             
-            if (action === 'continue') {
-                // Ação: Continuar um chamado que já é seu
-                iniciarSolucao(id); // Apenas navega para a tela de solução
-                return; // Encerra
-            }
+            // NOVO: Lógica para a ação 'delete'
+            if (action === 'delete') {
+                // REFORÇO DE SEGURANÇA (lado do cliente): Somente ADM pode tentar excluir
+                if (this.nivelAcesso !== NIVEL_ADMIN) {
+                    alert('Acesso negado. Apenas administradores podem excluir chamados.');
+                    return;
+                }
+                
+                // Confirmação de segurança antes da exclusão
+                if (!confirm(`Tem certeza que deseja EXCLUIR permanentemente o chamado ID ${id}? Esta ação não pode ser desfeita.`)) {
+                    return; // Usuário cancelou
+                }
 
-            // (Opcional: Ação 'close' foi removida, mas poderia ser tratada aqui)
-            // if (action === 'close') { ... }
-            
-            // Recarrega os dados da lista se uma ação (que não seja navegação) for concluída
-            await this.loadData();
+                // Chamada à API para exclusão
+                await apiDeleteChamado(id);
+                alert(`Chamado ID ${id} excluído com sucesso.`);
+            }
 
-        } catch (error) {
-            alert('Erro ao atualizar chamado: ' + error.message);
-            console.error('Erro ao atualizar chamado:', error);
-        }
-    }
+            // Recarrega os dados da lista se uma ação (como 'delete') for concluída
+            await this.loadData();
+
+        } catch (error) {
+            alert('Erro ao processar ação do chamado: ' + (error.message || 'Erro desconhecido.'));
+            console.error('Erro na ação do chamado:', action, error);
+        }
+    }
 }
 
 

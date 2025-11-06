@@ -286,3 +286,45 @@ export async function apiConcordarSolucao(chamadoId) {
 
     return response.json();
 }
+
+/**
+ * EXCLUSÃO [Ação do ADM] Envia um DELETE para remover o chamado permanentemente.
+ * Corresponde à rota DELETE /:id no backend (que deve ser protegida por verificarAdm).
+ * @param {number} chamadoId O ID do chamado a ser excluído.
+ */
+export async function apiDeleteChamado(chamadoId) {
+    if (!chamadoId) {
+        throw new Error("ID do chamado é obrigatório para exclusão.");
+    }
+    
+    try {
+        const response = await fetch(`${API_BASE}/chamados/${chamadoId}`, {
+            method: 'DELETE', // Método DELETE para exclusão
+            credentials: 'include',
+        });
+
+        if (response.ok) {
+            // 200 OK ou 204 No Content (dependendo do seu backend, assumimos sucesso)
+            return { success: true, message: `Chamado ${chamadoId} excluído.` };
+        }
+
+        // Se a resposta não for OK, tenta pegar a mensagem de erro específica.
+        let errorData = {};
+        try {
+            errorData = await response.json();
+        } catch (e) {
+            errorData.error = `Erro HTTP ${response.status}: ${response.statusText}`;
+        }
+        
+        // Se a API retornar 403, a mensagem de erro deve refletir a falha de autorização.
+        if (response.status === 403) {
+             throw new Error("Acesso negado. Apenas Administradores podem excluir chamados.");
+        }
+
+        throw new Error(errorData.error || 'Erro ao tentar excluir chamado.');
+
+    } catch (error) {
+        console.error('Erro API (Delete):', error);
+        throw error;
+    }
+}
