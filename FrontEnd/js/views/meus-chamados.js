@@ -48,7 +48,7 @@ class MeusChamadosView {
                 <thead>
                     <tr>
                         <th>ID Chamado</th>
-                        <th>Cliente</th> 
+                        
                         <th>Descrição</th>
                         <th>Status</th>
                         <th>Prioridade</th>
@@ -158,7 +158,7 @@ class MeusChamadosView {
         }
     }
 
-    // 🚨 drawChamados / applyFilters foi removido, pois a busca é toda no servidor agora.
+    
 
     getActionButton(chamadoId, status, clienteId_Cham) {
         const statusLower = status.toLowerCase();
@@ -201,31 +201,86 @@ class MeusChamadosView {
         `;
     }
 
-    renderPagination() {
-        const totalPages = Math.ceil(this.totalCount / this.pageSize);
-        const paginationContainer = document.getElementById('paginationContainer');
+   renderPagination() {
+        const totalPages = Math.ceil(this.totalCount / this.pageSize);
+        const paginationContainer = document.getElementById('paginationContainer');
+        const instanceName = 'meusChamadosView'; // Nome da instância global
 
-        if (!paginationContainer || totalPages <= 1) {
-            if (paginationContainer) paginationContainer.innerHTML = '';
-            return;
-        }
+        if (!paginationContainer || totalPages <= 1) {
+            if (paginationContainer) paginationContainer.innerHTML = '';
+            return;
+        }
 
-        let buttons = '';
-        const startPage = Math.max(1, this.currentPage - 2);
-        const endPage = Math.min(totalPages, this.currentPage + 2);
+        let buttons = '';
+        let pageNumbersToRender = [];
 
-        buttons += `<button class="btn btn-sm" ${this.currentPage === 1 ? 'disabled' : ''} onclick="window.meusChamadosView.goToPage(${this.currentPage - 1})">← Anterior</button>`;
+        // 1. Caso de poucas páginas (mostrar todas)
+        if (totalPages <= 5) {
+            for (let i = 1; i <= totalPages; i++) {
+                pageNumbersToRender.push(i);
+            }
+        } else {
+            // 2. Lógica para mostrar 1, Última e 3 botões no meio
+            let start = 0;
+            let end = 0;
 
-        for (let i = startPage; i <= endPage; i++) {
-            const activeClass = i === this.currentPage ? 'primary' : 'secondary';
-            buttons += `<button class="btn btn-sm ${activeClass}" onclick="window.meusChamadosView.goToPage(${i})">${i}</button>`;
-        }
+            if (this.currentPage <= 3) {
+                start = 1; end = 3;
+            } else if (this.currentPage > totalPages - 3) {
+                start = totalPages - 2; end = totalPages;
+            } else {
+                start = this.currentPage - 1; end = this.currentPage + 1;
+            }
 
-        buttons += `<button class="btn btn-sm" ${this.currentPage === totalPages ? 'disabled' : ''} onclick="window.meusChamadosView.goToPage(${this.currentPage + 1})">Próximo →</button>`;
+            // Adiciona a Página 1 (fixa)
+            pageNumbersToRender.push(1);
+            
+            // Adiciona os botões centrais (excluindo 1 e totalPages se estiverem no range)
+            for (let i = start; i <= end; i++) {
+                if (i > 1 && i < totalPages) {
+                    pageNumbersToRender.push(i);
+                }
+            }
 
-        paginationContainer.innerHTML = `<div class="pagination">${buttons}</div>`;
-    }
+            // Adiciona a Última Página (fixa)
+            if (totalPages > 1) {
+                pageNumbersToRender.push(totalPages);
+            }
 
+            // Filtra duplicatas e ordena para processamento de reticências
+            pageNumbersToRender = [...new Set(pageNumbersToRender)].sort((a, b) => a - b);
+        }
+        
+        
+        // --- RENDERIZAÇÃO FINAL (Anterior, Números/Reticências, Próximo) ---
+
+        // 1. Botão ANTERIOR
+        if (this.currentPage > 1) {
+            buttons += `<button class="btn btn-sm" onclick="window.${instanceName}.goToPage(${this.currentPage - 1})">← Anterior</button>`;
+        }
+
+        // 2. Números e Reticências
+        let prevPage = 0;
+        for (const pageNum of pageNumbersToRender) {
+            // Adiciona reticências se o salto for maior que 1 página
+            if (prevPage > 0 && pageNum > prevPage + 1) {
+                buttons += `<span class="pagination-ellipsis">...</span>`;
+            }
+            
+            const activeClass = pageNum === this.currentPage ? 'primary' : 'secondary';
+            buttons += `<button class="btn btn-sm ${activeClass}" onclick="window.${instanceName}.goToPage(${pageNum})">${pageNum}</button>`;
+            
+            prevPage = pageNum;
+        }
+
+
+        // 3. Botão PRÓXIMO
+        if (this.currentPage < totalPages) {
+            buttons += `<button class="btn btn-sm" onclick="window.${instanceName}.goToPage(${this.currentPage + 1})">Próximo →</button>`;
+        }
+
+        paginationContainer.innerHTML = `<div class="pagination">${buttons}</div>`;
+    }
     renderTable(data) {
         const tbody = document.getElementById('tbodyChamados');
         if (!tbody) return;
@@ -243,7 +298,7 @@ class MeusChamadosView {
             return `
                  <tr>
                     <td>${chamado.id_Cham}</td>
-                     <td>${nomeCompleto || chamado.clienteId_Cham}</td> 
+                   
                     <td>${renderDescricaoCurta(chamado.descricao_Cham, chamado.id_Cham)}</td>                     <td>${renderBadge(chamado.status_Cham)}</td>
                      <td>${getPrioridadeTexto(chamado.prioridade_Cham)}</td>
                      <td>${chamado.categoria_Cham}</td>
@@ -260,8 +315,6 @@ class MeusChamadosView {
         }
     }
 }
-
-window.iniciarSolucao = iniciarSolucao;
 
 export function renderMeusChamados() {
     window.meusChamadosView = new MeusChamadosView('view');

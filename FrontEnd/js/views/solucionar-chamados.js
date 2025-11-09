@@ -1,42 +1,65 @@
-import { apiGetChamados, apiGetChamadosTecnico, apiUpdateChamado } from '../api/chamados.js';
+/*
+ * =================================================================
+ * View: Solucionar Chamados (solucionar-chamados.js)
+ * =================================================================
+ * Esta view é responsável por exibir a lista de chamados para
+ * técnicos (Nível 2) e administradores (Nível 3).
+ *
+ * Utiliza a BaseListView para gerenciar paginação e estado de filtro.
+ * =================================================================
+ */
+
+// --- Importações ---
+import { apiGetChamados, apiGetChamadosTecnico, apiUpdateChamado, apiDeleteChamado } from '../api/chamados.js';
 import { renderBadge, getPrioridadeTexto, formatDate, renderDescricaoCurta } from '../utils/helpers.js';
-import { iniciarSolucao } from './solucionar-chamado-detalhe.js'
+import { iniciarSolucao } from './solucionar-chamado-detalhe.js';
 import { store } from '../store.js';
-import { BaseListView } from '../utils/base-list-view.js';
+import { BaseListView } from '../utils/base-list-view.js'; // Classe base para paginação/filtros
 
-
+// --- Constantes da View ---
 const NIVEL_ADMIN = 3;
 const NIVEL_TECNICO = 2;
 const STATUS_EM_ANDAMENTO = 'Em andamento';
-const DEFAULT_PAGE_SIZE = 5; // Define o tamanho da página
-
+const DEFAULT_PAGE_SIZE = 5; // Itens por página
 
 /**
- * Classe para gerenciar a exibição, carregamento e filtragem dos chamados.
- * Encapsula o estado e a lógica de manipulação do DOM.
+ * Classe principal para gerenciar a tela "Solucionar Chamados".
+ * Herda de BaseListView para reutilizar a lógica de paginação e
+ * estado de filtro (currentPage, pageSize, filtroStatus, termoBusca).
  */
 class ChamadoManager extends BaseListView {
+    
+    /**
+     * Prepara a classe, definindo o estado inicial e pegando dados do usuário logado.
+     */
     constructor() {
-        super(DEFAULT_PAGE_SIZE); // Inicializa this.currentPage, this.pageSize, this.filtroStatus, this.termoBusca
+        // Inicializa a classe base com o tamanho de página padrão
+        super(DEFAULT_PAGE_SIZE); 
         
-        // 🚨 CORREÇÃO: Removidas as redefinições de this.currentPage/pageSize/filtroStatus/buscaInput.
-        this.chamadosData = []; // Mantido, armazena a lista atual
+        // Armazena os dados brutos da API para a página atual
+        this.chamadosData = [];
+        
+        // Referências do DOM que serão preenchidas no 'assignDOMelements'
         this.tbody = null;
         this.loadingIndicator = null;
+        this.filtroStatusEl = null;
+        this.buscaInputEl = null;
         
-        // Mapeamentos de elementos DOM (Ainda são necessários)
-        this.filtroStatusEl = null; 
-        this.buscaInputEl = null; 
-        
-        // Propriedades específicas de segurança/contexto
+        // Contexto do usuário (do 'store' global)
         this.usuarioLogadoId = store.usuarioLogado?.id || null;
         this.nivelAcesso = store.usuarioLogado?.nivel_acesso || 0;
     }
 
+    // =================================================================
+    // --- 1. Métodos de Inicialização ---
+    // =================================================================
+
     /**
-     * Inicializa a view, carrega os dados e configura os eventos.
+     * Ponto de entrada principal da classe.
+     * Verifica permissões, renderiza o HTML base e carrega os dados.
      */
     async init() {
+        // Guarda de Rota: Somente Nível 2 (Técnico) ou superior pode acessar esta tela.
         if (!this.usuarioLogadoId || this.nivelAcesso < NIVEL_TECNICO) {
             document.getElementById('view').innerHTML = '<div class="card">Acesso não autorizado.</div>';
             return;
@@ -45,11 +68,29 @@ class ChamadoManager extends BaseListView {
         this.renderBaseHTML();
         this.assignDOMelements();
         this.setupEvents();
-        await this.loadData(); // Chama o método da classe filha/abstrata
+        
+        // 'loadData' é o método da *nossa* classe (ChamadoManager)
+        // que é chamado pela classe base (BaseListView)
+        await this.loadData(); 
     }
 
     /**
-     * Renderiza o HTML estático da interface (toolbar e tabela).
+     * Atribui referências aos elementos do DOM para uso interno.
+     * @private
+     */
+    assignDOMelements() {
+        this.tbody = document.getElementById('tbody');
+        this.loadingIndicator = document.getElementById('loadingChamados');
+        this.filtroStatusEl = document.getElementById('filtroStatus');
+        this.buscaInputEl = document.getElementById('busca');
+    }
+
+    // =================================================================
+    // --- 2. Métodos de Renderização da UI ---
+    // =================================================================
+
+    /**
+     * Renderiza o "shell" estático da view (toolbar, tabela vazia, etc.).
      * @private
      */
     renderBaseHTML() {
@@ -70,7 +111,8 @@ class ChamadoManager extends BaseListView {
                 <thead>
                     <tr>
                         <th>ID Chamado</th>
-                        <th>Responsável</th> <th>Descrição</th>
+                        <th>Responsável</th>
+                        <th>Descrição</th>
                         <th>Status</th>
                         <th>Prioridade</th>
                         <th>Categoria</th>
@@ -85,152 +127,30 @@ class ChamadoManager extends BaseListView {
     }
 
     /**
-     * Atribui as referências aos elementos do DOM para uso interno.
-     * @private
-     */
-     assignDOMelements() {
-        this.tbody = document.getElementById('tbody');
-        this.loadingIndicator = document.getElementById('loadingChamados');
-        this.filtroStatusEl = document.getElementById('filtroStatus'); 
-        this.buscaInputEl = document.getElementById('busca'); 
-    }
-
-    /**
-     * Configura os listeners de eventos.
-     * @private
-     */
-     setupEvents() {
-        // 🚨 MELHORIA: Usa triggerLoad da classe base para o refresh
-        document.getElementById('refreshChamados').addEventListener('click', () => this.triggerLoad(true));
-        
-         this.filtroStatusEl.addEventListener('change', (e) => {
-            this.filtroStatus = e.target.value; // Atualiza o estado herdado (BaseListView)
-            this.termoBusca = this.buscaInputEl.value;
-            this.triggerLoad(true);
-        });
-
-        this.buscaInputEl.addEventListener('input', (e) => {
-            this.termoBusca = e.target.value.toLowerCase();
-            this.filtroStatus = this.filtroStatusEl.value;
-            this.triggerLoad(true);
-        });
-        
-        this.tbody.addEventListener('click', this.handleChamadoActions.bind(this));
-    }
-
-
-    /**
-    * Carrega os dados de chamados da API e atualiza o estado da classe.
-    */
-    async loadData() {
-        try {
-             if (this.loadingIndicator) {
-                this.loadingIndicator.style.display = 'block';
-                this.loadingIndicator.textContent = 'Carregando chamados...';
-            }
-            
-            let response;
-            
-            const apiParams = [this.currentPage, this.pageSize, this.termoBusca, this.filtroStatus];
-
-            if (this.nivelAcesso === NIVEL_ADMIN) {
-                // Admin: Rota paginada
-                response = await apiGetChamados(...apiParams);
-            } else if (this.nivelAcesso >= NIVEL_TECNICO) {
-                // Técnico: Rota paginada
-                response = await apiGetChamadosTecnico(...apiParams);
-            } else {
-                response = { chamados: [], totalCount: 0 };
-            }
-            
-            // 🚨 Assume que a API retorna { chamados: [...], totalCount: N }
-            this.chamadosData = response.chamados; 
-            this.totalCount = response.totalCount;
-
-            this.drawChamados(); // Aplica filtros locais (necessário se o backend não fizer tudo)
-            this.renderPagination(); // MÉTODO HERDADO
-
-            if (this.loadingIndicator) {
-                this.loadingIndicator.style.display = 'none';
-            }
-        } catch (error) {
-            if (this.loadingIndicator) {
-                this.loadingIndicator.textContent = 'Erro ao carregar chamados';
-            }
-            console.error('Erro ao carregar chamados:', error);
-        }
-    }
-
-    /**
-     * NOVO: Retorna o HTML do botão de ação primário com base no estado do chamado.
-     * @param {Object} c - O objeto chamado.
-     * @returns {string} O HTML do botão ou string vazia.
-     */
-    getActionButton(c) {
-        const isAssignedToMe = c.tecResponsavel_Cham === this.usuarioLogadoId;
-        const isInProgress = c.status_Cham === STATUS_EM_ANDAMENTO;
-        const isClosed = c.status_Cham === 'Fechado';
-        
-        // Checa se o usuário logado é o autor do chamado
-        const isAuthor = c.clienteId_Cham === this.usuarioLogadoId; 
-
-        if (isClosed) {
-            return `<button class="btn secondary" onclick="detalharChamadoIA(${c.id_Cham})">Fechado</button>`;
-        }
-        
-        // Lógica para chamados EM ANDAMENTO (já na fila de trabalho)
-        if (isInProgress) {
-            if (isAssignedToMe) {
-                // Se está atribuído a ele, ele continua (independente de ser o autor)
-                return `<button class="btn btn-third" data-action="continue" data-id="${c.id_Cham}">Continuar Solucionando</button>`;
-            } else if (!c.tecResponsavel_Cham) {
-                // Chamado livre na fila
-                
-                // 🚨 CORREÇÃO: Bloqueia a ação 'take' se o Admin/Tecnico for o autor
-                if (isAuthor) {
-                    return '<button class="btn btn-secondary" disabled>Você é o Autor</button>';
-                }
-                
-                return `<button class="btn btn-primary" data-action="take" data-id="${c.id_Cham}">🛠️ Solucionar Chamado</button>`;
-            } else {
-                // Em Andamento, mas de outro técnico/administrador
-                return '<button class="btn btn-secondary" disabled>Em Andamento (Atribuído)</button>';
-            }
-        }
-        
-        // Chamados "Aberto" (fora do fluxo de trabalho do técnico)
-        if (c.status_Cham === 'Aberto') {
-            return '<button class="btn btn-secondary" disabled>Aguardando IA/Cliente</button>';
-        }
-
-        return '';
-    }
-
-    /**
-     * Renderiza a tabela de chamados (linhas).
-     * @param {Array<Object>} chamados - Lista de chamados a serem renderizados.
+     * Renderiza as linhas (<tr>) da tabela com base nos dados fornecidos.
+     * @param {Array<Object>} chamados - Lista de chamados para exibir.
      * @private
      */
     renderChamadosTable(chamados) {
         if (!this.tbody) return;
 
-        this.tbody.innerHTML = '';
+        if (chamados.length === 0) {
+            this.tbody.innerHTML = '<tr><td colspan="8" style="text-align: center;">Nenhum chamado encontrado.</td></tr>';
+            return;
+        }
+
         const rows = chamados.map(c => {
+            // Lógica de UI complexa é movida para uma função helper
             const actionButton = this.getActionButton(c);
             
             const nomeTecnico = c.tecNome 
                 ? `${c.tecNome} ${c.tecSobrenome}` 
-                : (c.tecResponsavel_Cham || 'Sem técnico'); 
+                : (c.tecResponsavel_Cham ? `ID: ${c.tecResponsavel_Cham}` : 'Sem técnico');
             
-            const closeButton = (c.tecResponsavel_Cham === this.usuarioLogadoId && c.status_Cham !== 'Fechado') 
-                ? `<button class="btn btn-secondary" data-action="close" data-id="${c.id_Cham}">Finalizar ✓</button>` 
-                : '';
-
             return `
-                 <tr>
+                <tr>
                     <td>${c.id_Cham}</td>
-                    <td>${nomeTecnico}</td> 
-                    
+                    <td>${nomeTecnico}</td>
                     <td>${renderDescricaoCurta(c.descricao_Cham, c.id_Cham) || 'Sem descrição'}</td>
                     <td>${renderBadge(c.status_Cham)}</td>
                     <td>${getPrioridadeTexto(c.prioridade_Cham)}</td>
@@ -238,98 +158,232 @@ class ChamadoManager extends BaseListView {
                     <td>${formatDate(c.dataAbertura_Cham)}</td>
                     <td>
                         ${actionButton}
-                        <!-- ${closeButton}-->
-                    </td>
-                 </tr>
+                        </td>
+                </tr>
             `;
         }).join('');
+        
         this.tbody.innerHTML = rows;
     }
 
     /**
-     * Filtra e exibe os chamados com base nos critérios selecionados.
+     * Helper que contém a lógica de negócios para decidir qual botão
+     * de ação exibir para o técnico/admin.
+     * @param {Object} c - O objeto chamado.
+     * @returns {string} O HTML dos botões.
+     * @private
+     */
+    getActionButton(c) {
+        const isAssignedToMe = c.tecResponsavel_Cham === this.usuarioLogadoId;
+        const isInProgress = c.status_Cham === STATUS_EM_ANDAMENTO;
+        const isClosed = c.status_Cham === 'Fechado'; // <-- Importante
+        const isAuthor = c.clienteId_Cham === this.usuarioLogadoId;
+        
+        // Checagem de Nível de Acesso para ADMIN
+        const isAdmin = this.nivelAcesso === NIVEL_ADMIN;
+        
+        // 1. Chamado fechado
+        if (isClosed) {
+            // Se for ADM, substitui o botão 'Fechado' por 'Excluir'.
+            if (isAdmin) {
+                // Botão Excluir (Apenas ADM E se o status for 'Fechado')
+                // Use 'danger' para indicar ação destrutiva
+                return `<button class="btn danger" data-action="delete" data-id="${c.id_Cham}" title="Excluir Chamado (Apenas ADM)">🗑️ Excluir</button>`;
+            } else {
+                // Para Técnicos (Nível 2), continua mostrando "Fechado"
+                return `<button class="btn secondary" onclick="detalharChamadoIA(${c.id_Cham})">Fechado</button>`;
+            }
+        }
+
+        // 2. Chamado "Em Andamento" (Lógica original permanece)
+        if (isInProgress) {
+            if (isAssignedToMe) {
+                // Está comigo, posso continuar a solução
+                return `<button class="btn btn-third" data-action="continue" data-id="${c.id_Cham}">Continuar Solucionando</button>`;
+            } 
+            
+            if (!c.tecResponsavel_Cham) {
+                // Regra de negócio: Se o usuário logado for o autor, ele não pode "pegar" o próprio chamado.
+                if (isAuthor) {
+                    return '<button class="btn btn-secondary" disabled>Você é o Autor</button>';
+                }
+                // Está "Em Andamento" mas livre (ex: fila da IA), pode pegar.
+                return `<button class="btn btn-primary" data-action="take" data-id="${c.id_Cham}">🛠️ Solucionar Chamado</button>`;
+            }
+            
+            // Está em andamento E com outro técnico
+            return '<button class="btn btn-secondary" disabled>Em Andamento (Atribuído)</button>';
+        }
+        
+        // 3. Chamado "Aberto" (Lógica original permanece)
+        if (c.status_Cham === 'Aberto') {
+            return '<button class="btn btn-secondary" disabled>Aguardando IA/Cliente</button>';
+        }
+
+        // Fallback
+        return '';
+    }
+
+    // =================================================================
+    // --- 3. Métodos de Gerenciamento de Dados ---
+    // =================================================================
+
+    /**
+     * Carrega os dados da API com base no nível de acesso e nos filtros
+     * atuais (armazenados na classe base).
+     * Este método é chamado por 'init' e pela paginação (BaseListView).
      */
-     drawChamados() {
-        if (!this.chamadosData || this.chamadosData.length === 0) {
-             this.renderChamadosTable([]);
-             return;
+    async loadData() {
+        if (this.loadingIndicator) {
+            this.loadingIndicator.style.display = 'block';
+            this.loadingIndicator.textContent = 'Carregando chamados...';
         }
+        
+        try {
+            const apiParams = [this.currentPage, this.pageSize, this.termoBusca, this.filtroStatus];
+            let response;
 
-        // 🚨 CORREÇÃO: Usa os valores dos elementos DOM mapeados
-        const status = this.filtroStatusEl.value; 
-        const q = this.buscaInputEl.value.toLowerCase(); 
+            // Decide qual endpoint da API chamar com base no nível de acesso
+            if (this.nivelAcesso === NIVEL_ADMIN) {
+                // Admin vê TODOS os chamados
+                response = await apiGetChamados(...apiParams);
+            } else {
+                // Técnico vê apenas os chamados da fila "Em Andamento"
+                response = await apiGetChamadosTecnico(...apiParams);
+            }
 
-        const chamadosFiltrados = this.chamadosData.filter(c => {
-            const statusMatch = !status || c.status_Cham.toLowerCase() === status.toLowerCase();
-            const searchMatch = !q ||
-                (c.descricao_Cham && c.descricao_Cham.toLowerCase().includes(q)) ||
-                (c.categoria_Cham && c.categoria_Cham.toLowerCase().includes(q));
-            return statusMatch && searchMatch;
-        });
+            // A API deve retornar { chamados: [...], totalCount: N }
+            this.chamadosData = response.chamados;
+            this.totalCount = response.totalCount; // Informa à BaseListView o total de itens
 
-        this.renderChamadosTable(chamadosFiltrados);
+            this.drawChamados(); // Renderiza os dados recebidos
+            this.renderPagination(); // Renderiza os controles de paginação (método da BaseListView)
+
+        } catch (error) {
+            console.error('Erro ao carregar chamados:', error);
+            if (this.loadingIndicator) {
+                this.loadingIndicator.textContent = 'Erro ao carregar chamados. Tente novamente.';
+            }
+        } finally {
+            if (this.loadingIndicator) {
+                this.loadingIndicator.style.display = 'none';
+            }
+        }
     }
 
     /**
-     * Manipula as ações dos botões na tabela de chamados.
-     * @param {Event} e - Evento de clique
-     * @private
+     * Renderiza os dados na tabela.
+     * Esta função é chamada após 'loadData' buscar os dados.
+     * A filtragem já foi feita pelo back-end.
      */
-    async handleChamadoActions(e) {
-        const btn = e.target.closest('button');
-        if (!btn) return;
-
-        const id = +btn.dataset.id;
-        const action = btn.dataset.action;
-        let updatePayload = {};
-
-        try {
-            if (action === 'take') {
-                // Prepara o payload para ATRIBUIÇÃO (Tecnico = logado, Status = Em andamento)
-                updatePayload = {
-                    status_Cham: STATUS_EM_ANDAMENTO,
-                    tecResponsavel_Cham: this.usuarioLogadoId
-                };
-
-                await apiUpdateChamado(id, updatePayload);
-                alert(`Chamado ${id} atribuído a você!`);
-                iniciarSolucao(id); // Navega para a tela de solução
-                return;
-
-            } else if (action === 'continue') {
-                // Navega para a tela de solução (o chamado já está atribuído)
-                iniciarSolucao(id);
-                return;
-
-            } else if (action === 'close') {
-                // Prepara o payload para FINALIZAÇÃO
-                updatePayload = {
-                    status_Cham: 'Fechado',
-                    dataFechamento_Cham: new Date().toISOString().slice(0, 10)
-                };
-                await apiUpdateChamado(id, updatePayload);
-            } else {
-                return;
-            }
-
-            // Recarrega a lista após o close/finalização
-            await this.loadData(); 
-
-        } catch (error) {
-            alert('Erro ao atualizar chamado: ' + error.message);
-            console.error('Erro ao atualizar chamado:', error);
-        }
+    drawChamados() {
+        // A filtragem foi removida daqui, pois 'this.chamadosData' já
+        // contém os dados corretos (filtrados e paginados) vindos da API.
+        this.renderChamadosTable(this.chamadosData);
     }
 
+    // =================================================================
+    // --- 4. Métodos de Gerenciamento de Eventos ---
+    // =================================================================
+
+    /**
+     * Configura todos os listeners de eventos para a view.
+     * @private
+     */
+    setupEvents() {
+        // O 'triggerLoad(true)' é um método da BaseListView.
+        // O 'true' indica que a paginação deve ser resetada para a página 1.
+        
+        document.getElementById('refreshChamados').addEventListener('click', () => {
+            this.triggerLoad(false); // 'false' = recarrega a página atual
+        });
+
+        this.filtroStatusEl.addEventListener('change', (e) => {
+            this.filtroStatus = e.target.value; // Atualiza o estado na BaseListView
+            this.triggerLoad(true); // Reseta para a página 1
+        });
+
+        this.buscaInputEl.addEventListener('input', (e) => {
+            this.termoBusca = e.target.value; // Atualiza o estado na BaseListView
+            this.triggerLoad(true); // Reseta para a página 1
+        });
+        
+        // Delegação de eventos: Um único listener no <tbody>
+        // para gerenciar cliques em todos os botões de ação.
+        this.tbody.addEventListener('click', (e) => this.handleChamadoActions(e));
+    }
+
+    /**
+     * Manipulador central para todos os cliques nos botões de ação da tabela.
+     * @param {Event} e - O objeto de evento do clique.
+     * @private
+     */
+    async handleChamadoActions(e) {
+        // Encontra o botão mais próximo que foi clicado
+        const btn = e.target.closest('button');
+        if (!btn) return; // O clique não foi em um botão
+
+        const id = +btn.dataset.id; // Converte o ID para número
+        const action = btn.dataset.action;
+
+        if (!action || !id) return; // Botão sem ação ou ID
+
+        try {
+            if (action === 'take') {
+                // Ação: Pegar um chamado da fila
+                const updatePayload = {
+                    status_Cham: STATUS_EM_ANDAMENTO, // Define o status
+                    tecResponsavel_Cham: this.usuarioLogadoId // Atribui a si mesmo
+                };
+
+                await apiUpdateChamado(id, updatePayload);
+                alert(`Chamado ${id} atribuído a você!`);
+                iniciarSolucao(id); // Navega para a tela de detalhes da solução
+                return; // Encerra a execução aqui
+            }
+            
+            if (action === 'continue') {
+                // Ação: Continuar um chamado que já é seu
+                iniciarSolucao(id); // Apenas navega para a tela de solução
+                return; // Encerra
+            }
+            
+            // NOVO: Lógica para a ação 'delete'
+            if (action === 'delete') {
+                // REFORÇO DE SEGURANÇA (lado do cliente): Somente ADM pode tentar excluir
+                if (this.nivelAcesso !== NIVEL_ADMIN) {
+                    alert('Acesso negado. Apenas administradores podem excluir chamados.');
+                    return;
+                }
+                
+                // Confirmação de segurança antes da exclusão
+                if (!confirm(`Tem certeza que deseja EXCLUIR permanentemente o chamado ID ${id}? Esta ação não pode ser desfeita.`)) {
+                    return; // Usuário cancelou
+                }
+
+                // Chamada à API para exclusão
+                await apiDeleteChamado(id);
+                alert(`Chamado ID ${id} excluído com sucesso.`);
+            }
+
+            // Recarrega os dados da lista se uma ação (como 'delete') for concluída
+            await this.loadData();
+
+        } catch (error) {
+            alert('Erro ao processar ação do chamado: ' + (error.message || 'Erro desconhecido.'));
+            console.error('Erro na ação do chamado:', action, error);
+        }
+    }
 }
 
+
 /**
- * Função exportada que inicia a view.
- * *Esta é a única função que precisa ser mantida inalterada no seu nome e exportação
- * para não quebrar dependências externas.*
+ * Função de exportação pública.
+ * Cria a instância da classe e a inicia.
+ * É chamada pelo roteador (main.js).
  */
 export async function renderTodosChamados() {
+    // Expõe a instância ao 'window' para depuração fácil, se necessário
     window.chamadoManager = new ChamadoManager();
     await window.chamadoManager.init();
 }
-

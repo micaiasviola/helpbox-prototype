@@ -152,3 +152,5 @@ export function iniciarSolucao(idChamado) { // Use um nome de parâmetro genéri
     const view = new SolucionarChamadoView(idChamado);
     view.render();
 }
+
+window.iniciarSolucao = iniciarSolucao;

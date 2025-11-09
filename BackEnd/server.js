@@ -1,7 +1,12 @@
+const path = require('path');
+
+const dotenv = require('dotenv');
+dotenv.config({ path: path.join(__dirname, '..', '.env') });
+
 const express = require('express');
 const cors = require('cors');
 const session = require('express-session');
-const path = require('path');
+
 const verificaSessao = require('./middlewares/verificarSessao.js');
 const usuariosRoutes = require('./routes/usuarios');
 const chamadosRoutes = require('./routes/chamados');

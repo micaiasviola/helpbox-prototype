@@ -3,7 +3,7 @@ export const store = {
     chamados: [],
     usuarios: [],
     preferencias: {
-        accent: '#007BFF'
+        accent: '#8f1b1ba8'
     },
     usuarioLogado: null
 };

@@ -107,7 +107,8 @@ router.get('/me', verificaSessao, (req, res) => {
         sobrenome: usuario.sobrenome || 'Não Definido',
         cargo: usuario.cargo || 'Não Definido',
         nivel_acesso: usuario.nivel_acesso,
-        email: usuario.email
+        email: usuario.email,
+        departamento: usuario.departamento || 'Não Definido'
     });
 });
 
