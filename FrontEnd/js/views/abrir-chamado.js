@@ -63,10 +63,10 @@ class AbrirChamadoView {
                     <label class="label">Descrição</label>
                     <textarea class="textarea" name="descricao" placeholder="Detalhe o que está acontecendo"></textarea>
                 </div>
-                <div class="actions">
-                    <button class="btn" type="submit">Enviar</button>
-                    <button class="btn btn-secondary" type="reset">Limpar</button>
-                </div>
+                <footer class="actions">
+                 <button class="btn btn-secondary" type="reset">Limpar</button>
+                 <button class="btn" type="submit">Enviar</button>
+                </footer>
             </form>
             <div id="${this.alertContainerId}" style="margin-top:10px;"></div>
         `;

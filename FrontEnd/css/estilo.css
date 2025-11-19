@@ -561,3 +561,22 @@ html, body {
     padding: 12px;
   }
 }
+
+/* BOTAO DE RADIO */
+#demanda .demanda,
+#usuario .usuario,
+#tempo .tempo {
+    display: block;
+    margin-bottom: 6px; /* opcional, só pra dar espaçamento */
+}
+
+/*BOTAO DE SAIDA*/
+.btn-logout {
+    background-color: #bf3737ab;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 8px 12px;
+    cursor: pointer;
+    font-size: 14px;
+    }
