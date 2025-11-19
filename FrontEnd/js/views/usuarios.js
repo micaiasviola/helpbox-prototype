@@ -1,72 +1,155 @@
 import { apiGetUsuarios, apiCreateUsuario, apiUpdateUsuario, apiDeleteUsuario } from '../api/usuarios.js';
 
+import { showConfirmationModal } from '../utils/feedbackmodal.js'; 
+
 /**
  * Exibe a interface de gerenciamento de usuários
  */
 export function renderUsuarios() {
     const view = document.getElementById('view');
 
+    // Atualizei o CSS para ser mais específico (#userDialog)
+    // Assim ele não afeta o <dialog> de confirmação que acabamos de criar acima
+    const styles = `
+        <style>
+            /* Estilo para o Backgrop de QUALQUER dialog */
+            dialog::backdrop { background: rgba(0, 0, 0, 0.5); }
+            
+            /* Estilo ESPECÍFICO para o formulário de usuário */
+            #userDialog { 
+                position: fixed; 
+                inset: 0;        
+                margin: auto;    
+                border: none; 
+                border-radius: 8px; 
+                box-shadow: 0 4px 12px rgba(0,0,0,0.15); 
+                padding: 20px; 
+                width: 90%; 
+                max-width: 600px; 
+            }
+            
+            .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px; }
+            .full-width { grid-column: span 2; }
+            .modal-actions { display: flex; justify-content: flex-end; gap: 10px; }
+        </style>
+    `;
+
     view.innerHTML = `
-    <div class="toolbar">
-      <input id="novoNome" class="input" placeholder="Nome do usuário" style="max-width:180px"/>
-      <input id="novoSobrenome" class="input" placeholder="Sobrenome do usuário" style="max-width:180px"/>
-      <input id="novoEmail" class="input" placeholder="Email do usuário" style="max-width:240px"/>
-      <input id="novoSenha" class="input" placeholder="Senha" type="password" style="max-width:150px"/>
-      <input id="novoDepartamento" class="input" placeholder="Departamento" style="max-width:150px"/>
-      <select id="novoCargo" class="select" style="max-width:150px">
-        <option>Cliente</option>
-        <option>Tecnico</option>
-        <option>Administrador</option>
-      </select>
-      <select id="novoPermissao" class="select" style="max-width:100px">
-        <option value="1">1</option>
-        <option value="2">2</option>
-        <option value="3">3</option>
-      </select>
-      <button id="addUser" class="btn">Adicionar</button>
+    ${styles}
+    
+    <div class="toolbar" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+      <h2>Gerenciar Usuários</h2>
+      <button id="btnOpenModal" class="btn btn-primary">Novo Usuário</button>
     </div>
-    <div id="alert" style="margin-top:10px;"></div>
+
+    <div id="alert"></div>
+
     <table class="table">
       <thead>
         <tr>
-          <th>ID</th><th>Nome</th><th>Sobrenome</th><th>Email</th><th>Senha</th><th>Departamento</th><th>Cargo</th><th>Nível de Acesso</th><th>Ações</th>
+          <th>ID</th><th>Nome</th><th>Sobrenome</th><th>Email</th><th>Departamento</th><th>Cargo</th><th>Nível</th><th>Ações</th>
         </tr>
       </thead>
       <tbody id="uBody"></tbody>
     </table>
+
+    <dialog id="userDialog">
+        <h3 id="modalTitle" style="margin-top:0; margin-bottom:15px;">Novo Usuário</h3>
+        <form id="userForm">
+            <div class="form-grid">
+                <input id="novoNome" class="input" placeholder="Nome" required />
+                <input id="novoSobrenome" class="input" placeholder="Sobrenome" required />
+                <input id="novoEmail" class="input full-width" placeholder="Email" type="email" required />
+                <input id="novoDepartamento" class="input full-width" placeholder="Departamento" required />
+                <input id="novoSenha" class="input" placeholder="Senha" type="password" />
+                <input id="confirmaSenha" class="input" placeholder="Confirme a Senha" type="password" />
+                
+                <select id="novoCargo" class="select">
+                    <option>Cliente</option>
+                    <option>Tecnico</option>
+                    <option>Administrador</option>
+                </select>
+                
+                <select id="novoPermissao" class="select">
+                    <option value="1">Acesso: Baixo (1)</option>
+                    <option value="2">Acesso: Médio (2)</option>
+                    <option value="3">Acesso: Alto (3)</option>
+                </select>
+            </div>
+            
+            <div class="modal-actions">
+                <button type="button" id="btnCancelModal" class="btn btn-secondary">Cancelar</button>
+                <button type="button" id="btnSaveModal" class="btn btn-primary">Salvar</button>
+            </div>
+        </form>
+    </dialog>
   `;
 
+    // Referências DOM
     const body = document.getElementById('uBody');
     const alertBox = document.getElementById('alert');
+    const dialog = document.getElementById('userDialog');
+    const btnSave = document.getElementById('btnSaveModal');
+    
+    // Inputs
+    const inpNome = document.getElementById('novoNome');
+    const inpSobrenome = document.getElementById('novoSobrenome');
+    const inpEmail = document.getElementById('novoEmail');
+    const inpSenha = document.getElementById('novoSenha');
+    const inpConfirma = document.getElementById('confirmaSenha');
+    const inpDep = document.getElementById('novoDepartamento');
+    const inpCargo = document.getElementById('novoCargo');
+    const inpPermissao = document.getElementById('novoPermissao');
+
     const nivelAcesso = { '1': 'Baixo', '2': 'Médio', '3': 'Alto' };
     let usuarios = [];
     let editId = null;
 
-    /**
-     * Exibe uma mensagem de alerta temporária
-     * @param {string} msg - Mensagem a ser exibida
-     * @param {string} tipo - Tipo de alerta (success ou error)
-     */
     function showAlert(msg, tipo = 'success') {
-        alertBox.innerHTML = `<div class="card" style="background-color:${tipo === 'error' ? '#f8d7da' : '#d4edda'};color:${tipo === 'error' ? '#842029' : '#0f5132'}">${msg}</div>`;
+        alertBox.innerHTML = `<div class="card" style="padding:10px; margin-bottom:15px; background-color:${tipo === 'error' ? '#f8d7da' : '#d4edda'}; color:${tipo === 'error' ? '#842029' : '#0f5132'}; border-radius:4px;">${msg}</div>`;
         setTimeout(() => alertBox.innerHTML = '', 3000);
     }
 
-    /**
-     * Busca usuários da API
-     */
+    function openModal(user = null) {
+        inpSenha.style.borderColor = '';
+        inpConfirma.style.borderColor = '';
+
+        if (user) {
+            editId = user.id_User;
+            document.getElementById('modalTitle').textContent = `Editar ${user.nome_User}`;
+            inpNome.value = user.nome_User;
+            inpSobrenome.value = user.sobrenome_User;
+            inpEmail.value = user.email_User;
+            inpSenha.value = ''; 
+            inpConfirma.value = '';
+            inpSenha.placeholder = "Nova senha (deixe vazio para manter)";
+            inpConfirma.placeholder = "Confirme a nova senha";
+            inpDep.value = user.departamento_User;
+            inpCargo.value = user.cargo_User;
+            inpPermissao.value = user.nivelAcesso_User;
+        } else {
+            editId = null;
+            document.getElementById('modalTitle').textContent = 'Novo Usuário';
+            document.getElementById('userForm').reset();
+            inpSenha.placeholder = "Senha";
+            inpConfirma.placeholder = "Confirme a Senha";
+        }
+        dialog.showModal();
+    }
+
+    function closeModal() {
+        dialog.close();
+    }
+
     async function fetchUsuarios() {
         try {
             usuarios = await apiGetUsuarios();
             draw();
         } catch (err) {
-            showAlert('Erro ao carregar usuários: ', 'error');
+            showAlert('Erro ao carregar usuários.', 'error');
         }
     }
 
-    /**
-     * Renderiza a tabela de usuários
-     */
     function draw() {
         body.innerHTML = '';
         usuarios.forEach(u => {
@@ -76,109 +159,130 @@ export function renderUsuarios() {
         <td>${u.nome_User}</td>
         <td>${u.sobrenome_User}</td>
         <td>${u.email_User}</td>
-        <td>******</td>
         <td>${u.departamento_User}</td>
         <td>${u.cargo_User}</td>
-        <td>${nivelAcesso[u.nivelAcesso_User]}</td>
+        <td>${nivelAcesso[u.nivelAcesso_User] || u.nivelAcesso_User}</td>
         <td>
-          <button class="btn secondary" data-id="${u.id_User}" data-action="remover">Remover</button>
-          <button class="btn primary" data-id="${u.id_User}" data-action="editar">Editar</button>
+          <button class="btn primary small" data-id="${u.id_User}" data-action="editar">Editar</button>
+          <button class="btn btn-secondary small" data-id="${u.id_User}" data-action="remover">Remover</button>
         </td>`;
             body.appendChild(tr);
         });
     }
 
-    // Evento para adicionar/editar usuário
-    document.getElementById('addUser').addEventListener('click', async () => {
-        const nome = document.getElementById('novoNome').value.trim();
-        const sobrenome = document.getElementById('novoSobrenome').value.trim();
-        const email = document.getElementById('novoEmail').value.trim();
-        const senha = document.getElementById('novoSenha').value.trim();
-        const departamento = document.getElementById('novoDepartamento').value.trim();
-        const cargo = document.getElementById('novoCargo').value;
-        const permissao = parseInt(document.getElementById('novoPermissao').value);
+    // --- EVENT LISTENERS ---
 
-        if (!nome || !sobrenome || !email || !senha || !departamento) return showAlert('Preencha todos os campos', 'error');
+    document.getElementById('btnOpenModal').addEventListener('click', () => openModal());
+    document.getElementById('btnCancelModal').addEventListener('click', closeModal);
+
+    // BOTÃO SALVAR (CONFIRMAÇÃO ADICIONADA)
+    btnSave.addEventListener('click', async () => {
+        const nome = inpNome.value.trim();
+        const sobrenome = inpSobrenome.value.trim();
+        const email = inpEmail.value.trim();
+        const senha = inpSenha.value.trim();
+        const confirma = inpConfirma.value.trim();
+        const departamento = inpDep.value.trim();
+        const cargo = inpCargo.value;
+        const permissao = parseInt(inpPermissao.value);
+
+        // 1. Validações Básicas
+        if (!nome || !sobrenome || !email || !departamento) {
+            return alert('Preencha os campos obrigatórios.');
+        }
+
+        // 2. Validação de Senha
+        if (editId === null) {
+            if (!senha) return alert('Senha é obrigatória para novos usuários.');
+            if (senha !== confirma) {
+                inpSenha.style.borderColor = 'red';
+                inpConfirma.style.borderColor = 'red';
+                return alert('As senhas não conferem!');
+            }
+        }
+        if (editId !== null && senha) {
+            if (senha !== confirma) return alert('A confirmação da nova senha não confere!');
+        }
+        
+        inpSenha.style.borderColor = '';
+        inpConfirma.style.borderColor = '';
+
+        // 3. CHAMADA DO MODAL DE CONFIRMAÇÃO
+        const actionVerb = editId ? 'editar' : 'criar';
+        const userConfirmed = await showConfirmationModal(
+            'Confirmar Ação', 
+            `Deseja realmente ${actionVerb} o usuário <b>${nome}</b>?`
+        );
+
+        // Se usuário clicou em "Não", paramos aqui. O formulário continua aberto.
+        if (!userConfirmed) return;
+
+        const dados = {
+            nome_User: nome,
+            sobrenome_User: sobrenome,
+            email_User: email,
+            departamento_User: departamento,
+            cargo_User: cargo,
+            nivelAcesso_User: permissao
+        };
+        if (senha) dados.senha_User = senha;
+
+        // 4. Feedback de Loading (Só acontece se confirmou)
+        const textoOriginal = btnSave.textContent;
+        btnSave.disabled = true;
+        btnSave.textContent = 'Salvando...';
 
         try {
-            const dados = {
-                nome_User: nome,
-                sobrenome_User: sobrenome,
-                email_User: email,
-                senha_User: senha,
-                departamento_User: departamento,
-                cargo_User: cargo,
-                nivelAcesso_User: permissao
-            };
-
-            let resultado;
             if (editId !== null) {
-                // Modo edição
-                resultado = await apiUpdateUsuario(editId, dados);
-
-                const user = usuarios.find(u => u.id_User === editId);
-                Object.assign(user, {
-                    nome_User: nome,
-                    sobrenome_User: sobrenome,
-                    email_User: email,
-                    departamento_User: departamento,
-                    cargo_User: cargo,
-                    nivelAcesso_User: permissao
-                });
-                editId = null;
-                document.getElementById('addUser').textContent = 'Adicionar';
+                await apiUpdateUsuario(editId, dados);
+                const index = usuarios.findIndex(u => u.id_User === editId);
+                if (index !== -1) usuarios[index] = { ...usuarios[index], ...dados };
                 showAlert('Usuário atualizado com sucesso!');
             } else {
-                // Modo criação
-                resultado = await apiCreateUsuario(dados);
-                usuarios.push({
-                    id_User: resultado.id, // Assumindo que a API retorna { id: X } no POST
-                    nome_User: nome,
-                    sobrenome_User: sobrenome,
-                    email_User: email,
-                    departamento_User: departamento,
-                    cargo_User: cargo,
-                    nivelAcesso_User: permissao
-                });
-                showAlert('Usuário adicionado com sucesso!');
+                const resultado = await apiCreateUsuario({ ...dados, senha_User: senha });
+                usuarios.push({ id_User: resultado.id || '?', ...dados });
+                showAlert('Usuário criado com sucesso!');
             }
-            document.getElementById('novoNome').value = '';
-            document.getElementById('novoSobrenome').value = '';
-            document.getElementById('novoEmail').value = '';
-            document.getElementById('novoSenha').value = '';
-            document.getElementById('novoDepartamento').value = '';
+            closeModal(); // Fecha o formulário apenas no sucesso
             draw();
         } catch (err) {
-            showAlert(`Erro ao salvar usuário: ${err.message}`, 'error');
+            console.error(err);
+            // Usamos alert nativo aqui para erro de API para garantir que o usuário veja sobre o modal
+            alert(`Erro na operação: ${err.message}`); 
+        } finally {
+            btnSave.disabled = false;
+            btnSave.textContent = textoOriginal;
         }
     });
 
-    // Eventos para os botões de ação na tabela de usuários
+    // AÇÕES DA TABELA (REMOVER COM CONFIRMAÇÃO)
     body.addEventListener('click', async e => {
-        if (!e.target.matches('button')) return;
-        const id = +e.target.dataset.id;
-        const action = e.target.dataset.action;
+        const btn = e.target.closest('button');
+        if (!btn) return;
+        
+        const id = +btn.dataset.id;
+        const action = btn.dataset.action;
         const user = usuarios.find(u => u.id_User === id);
 
-        if (action === 'remover') {
-            try {
-                await apiDeleteUsuario(id);
-                usuarios = usuarios.filter(u => u.id_User !== id);
-                draw();
-                showAlert('Usuário removido com sucesso!');
-            } catch (err) {
-                showAlert(`Erro ao remover usuário: ${err.message}`, 'error');
+        if (action === 'editar') {
+            openModal(user);
+        } else if (action === 'remover') {
+            // Substituímos o confirm() nativo pelo seu Modal
+            const shouldDelete = await showConfirmationModal(
+                'Remover Usuário',
+                `Tem certeza que deseja remover o usuário <b>${user.nome_User}</b>? Esta ação não pode ser desfeita.`
+            );
+
+            if (shouldDelete) {
+                try {
+                    await apiDeleteUsuario(id);
+                    usuarios = usuarios.filter(u => u.id_User !== id);
+                    draw();
+                    showAlert('Usuário removido.');
+                } catch (err) {
+                    showAlert('Erro ao remover: ' + err.message, 'error');
+                }
             }
-        } else if (action === 'editar') {
-            document.getElementById('novoNome').value = user.nome_User;
-            document.getElementById('novoSobrenome').value = user.sobrenome_User;
-            document.getElementById('novoEmail').value = user.email_User;
-            document.getElementById('novoSenha').value = ''; // não mostra a senha real
-            document.getElementById('novoDepartamento').value = user.departamento_User;
-            document.getElementById('novoCargo').value = user.cargo_User;
-            document.getElementById('novoPermissao').value = user.nivelAcesso_User;
-            editId = id;
-            document.getElementById('addUser').textContent = 'Salvar';
         }
     });
 

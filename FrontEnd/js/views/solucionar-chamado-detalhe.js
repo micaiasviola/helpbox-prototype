@@ -1,11 +1,10 @@
 import { apiGetChamadoById, apiUpdateChamado } from "../api/chamados.js";
 import { store } from "../store.js";
 
+import { showConfirmationModal } from "../utils/feedbackmodal.js"; 
 
 function getSolucaoTemplate(chamado) {
     const dataAbertura = new Date(chamado.dataAbertura_Cham).toLocaleDateString();
-    
-    // 🚨 MELHORIA: Usa o nome do autor que veio da API
     const nomeCliente = (chamado.clienteNome || 'Cliente') + ' ' + (chamado.clienteSobrenome || '');
     const nomeAbertoPor = nomeCliente.trim();
     
@@ -44,15 +43,12 @@ function getSolucaoTemplate(chamado) {
     </div>`;
 }
 
-/** Classe responsável por exibir os detalhes do chamado para o Técnico/Admin e permitir a solução.
- */
 export class SolucionarChamadoView {
     constructor(chamadoId) {
         this.chamadoId = chamadoId;
         this.container = document.getElementById('view');
     }
 
-    /** Renderiza os detalhes do chamado e anexa os listeners de eventos. */
     async render() {
         this.container.innerHTML = `<div id="alert"></div><div class="card loading">Carregando detalhes do chamado #${this.chamadoId}...</div>`;
 
@@ -64,7 +60,6 @@ export class SolucionarChamadoView {
                 return;
             }
             
-            // Verifica se o chamado está fechado e exibe uma tela de visualização (opcional)
             if (chamado.status_Cham === 'Fechado') {
                  this.container.innerHTML = `<div class="card">Chamado #${this.chamadoId} Fechado. Solução Final: ${chamado.solucaoFinal_Cham || chamado.solucaoTec_Cham}</div>`;
                  return;
@@ -79,28 +74,44 @@ export class SolucionarChamadoView {
         }
     }
 
-
-    /** Anexa listeners para os botões de ação do técnico. */
     attachListeners(id) {
         document.getElementById('btnVoltar').addEventListener('click', () => this.voltarParaChamados());
-        document.getElementById('btnSalvarSolucao').addEventListener('click', () => this.salvarRascunho(id));
-        document.getElementById('btnFinalizar').addEventListener('click', () => this.finalizarChamado(id));
+        
+        // Adicionamos preventDefault por segurança, embora não seja form submit
+        document.getElementById('btnSalvarSolucao').addEventListener('click', (e) => {
+            e.preventDefault();
+            this.salvarRascunho(id);
+        });
+        
+        document.getElementById('btnFinalizar').addEventListener('click', (e) => {
+            e.preventDefault();
+            this.finalizarChamado(id);
+        });
     }
     
-    /** Salva o texto da solução como rascunho no campo solucaoTec_Cham. */
     async salvarRascunho(id) {
         const solucao = document.getElementById('solucaoTecnico').value;
         const alertDiv = document.getElementById('alertSolucao');
+
+        // 2. Confirmação para Salvar Rascunho
+        const confirmar = await showConfirmationModal(
+            'Salvar Rascunho', 
+            'Deseja atualizar o rascunho da solução?'
+        );
+
+        if (!confirmar) return; // Se clicar em "Não", para a execução
+
         alertDiv.innerHTML = '<div class="card info">Salvando rascunho...</div>';
         try {
             await apiUpdateChamado(id, { solucaoTec_Cham: solucao });
             alertDiv.innerHTML = '<div class="card success">Rascunho salvo com sucesso!</div>';
+            // Remove mensagem de sucesso após 3 segundos para limpar a tela
+            setTimeout(() => { alertDiv.innerHTML = ''; }, 3000);
         } catch (error) {
             alertDiv.innerHTML = `<div class="card error">Falha ao salvar rascunho: ${error.message}</div>`;
         }
     }
 
-    /** Fecha o chamado e salva a solução final. */
     async finalizarChamado(id) {
         const solucao = document.getElementById('solucaoTecnico').value;
         const alertDiv = document.getElementById('alertSolucao');
@@ -110,12 +121,20 @@ export class SolucionarChamadoView {
             return;
         }
 
+        // 3. Confirmação Crítica para Finalizar
+        const confirmar = await showConfirmationModal(
+            'Finalizar Chamado', 
+            'Tem certeza que deseja finalizar este chamado? <b>Esta ação irá concluir o atendimento.</b>'
+        );
+
+        if (!confirmar) return; // Se cancelar, nada acontece
+
         alertDiv.innerHTML = '<div class="card info">Finalizando chamado...</div>';
         try {
             await apiUpdateChamado(id, {
                  status_Cham: 'Fechado',
                  solucaoTec_Cham: solucao,
-                 solucaoFinal_Cham: solucao, // Usa a mesma solução como final
+                 solucaoFinal_Cham: solucao,
                  dataFechamento_Cham: new Date().toISOString()
             });
             alertDiv.innerHTML = '<div class="card success">✅ Chamado finalizado com sucesso! Redirecionando...</div>';
@@ -126,29 +145,20 @@ export class SolucionarChamadoView {
     }
 
     voltarParaChamados() {
-        // Volta para a tela de solução (todos os chamados)
         location.hash = '#/todos'; 
     }
 }
 
-/** Ponto de entrada para a navegação da aplicação. */
-export function iniciarSolucao(idChamado) { // Use um nome de parâmetro genérico
-    
-    // 1. Se o 'idChamado' veio do router (como string da URL), ele pode ser o ID
-    // Se for uma string vazia ou nula (ex: /#/solucao/ sem ID), não renderiza.
+export function iniciarSolucao(idChamado) { 
     if (!idChamado) {
-        // Redireciona para a lista se o ID for obrigatório e não existir
         location.hash = '#/todos';
         return; 
     }
     
-    // 2. Se a chamada veio do botão (com ID) ou do router (com ID), 
-    // garante que o hash esteja correto (evita loop desnecessário se o hash já está certo)
     if (!location.hash.includes(`#/solucao/${idChamado}`)) {
         location.hash = `#/solucao/${idChamado}`;
     }
     
-    // 3. Renderiza a view com o ID recebido
     const view = new SolucionarChamadoView(idChamado);
     view.render();
 }
