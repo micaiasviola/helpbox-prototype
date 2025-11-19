@@ -1,48 +1,54 @@
-// services/iaService.js
 const { GoogleGenAI } = require('@google/genai');
 
-// Inicialização conforme seu código original
-const ai = new GoogleGenAI({});
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
-async function gerarRespostaIA(categoria, descricao, titulo) {
+async function gerarRespostaIA(categoria, descricao, titulo, frequencia, impacto, usuarios) {
     
-    // Objeto de fallback padrão
     const FALLBACK = {
-        solucao: "A análise automática falhou. Por favor, encaminhe para a nossa equipe tecnica.",
+        solucao: "A análise automática falhou. Encaminhado para equipe técnica.",
         prioridade: 'M' 
     };
 
-    if (!descricao || descricao.length < 10) {
-        return { 
-            solucao: "Desculpe, a descrição é muito curta. Por favor, forneça mais detalhes.", 
-            prioridade: 'B' 
-        };
+    if (!descricao || descricao.length < 5) {
+        return { solucao: "Descrição muito curta.", prioridade: 'B' };
     }
 
-    // 🚨 O TRUQUE ESTÁ AQUI:
-    // Pedimos para a IA responder no formato: "A|Texto da solução..."
-    // Usamos o pipe "|" para separar a letra da prioridade do resto do texto.
     const prompt = `
-        Você é um Assistente de Suporte Técnico.
+        Você é um Assistente de Suporte Técnico (Nível 1).
         
-        1. Analise o chamado:
-           - Título: ${titulo} 
-           - Categoria: ${categoria}
-           - Descrição: ${descricao}
+        --- ETAPA 1: ANÁLISE DE DADOS ---
+        Título: ${titulo} 
+        Categoria: ${categoria}
+        Descrição: ${descricao}
+        Frequência: ${frequencia || 'Não informado'}
+        Impacto: ${impacto || 'Não informado'}
+        Abrangência: ${usuarios || 'Não informado'}
 
-        2. Defina a Prioridade:
-           - 'A' (Alta): Sistema parado, crítico.
-           - 'M' (Média): Problema funcional, lentidão.
-           - 'B' (Baixa): Dúvida, solicitação simples.
-
-        3. Crie uma solução curta em Markdown (listas/negrito).
-
-        ⚠️ IMPORTANTE: Sua resposta deve começar EXATAMENTE com a letra da prioridade, seguida de uma barra vertical "|", e depois a solução.
+        --- ETAPA 2: CÁLCULO OCULTO DE PRIORIDADE ---
+        Use estas regras APENAS para decidir a letra (A, M ou B). NÃO escreva isso na resposta.
         
-        Exemplo de Resposta:
-        M|**Solução Sugerida:**\n1. Faça isso...
+        1. Frequência: Ocasional(1) | Contínua(3)
+        2. Impacto: Mínimo(1) | Atraso(2) | Parado(3)
+        3. Abrangência: Eu(1) | Grupo(2) | Todos(3)
         
-        Sua resposta:
+        Soma: 7-9 pts = A | 4-6 pts = M | 3 pts = B
+
+        --- ETAPA 3: GERAÇÃO DE RESPOSTA ---
+        Escreva uma resposta técnica, cordial e formatada em Markdown (listas/negrito) com a solução.
+
+        =============================================================
+        🔴 REGRAS OBRIGATÓRIAS DE FORMATAÇÃO (LEIA COM ATENÇÃO):
+        
+        1. Sua resposta deve conter APENAS: A Letra, o Pipe (|) e a Solução.
+        2. PROIBIDO escrever "Cálculo de Prioridade", "Soma total" ou "Pontos".
+        3. PROIBIDO explicar por que você escolheu a prioridade.
+        
+        EXEMPLO DO QUE EU QUERO (Faça assim):
+        M|**Olá!** Para resolver esse problema de lentidão, sugiro limpar o cache...
+
+        EXEMPLO DO QUE EU NÃO QUERO (Jamais faça isso):
+        M|Cálculo: 1+2+1 = 4. **Olá**...
+        =============================================================
     `;
 
     const MAX_RETRIES = 3;
@@ -50,34 +56,35 @@ async function gerarRespostaIA(categoria, descricao, titulo) {
 
     for (let i = 0; i < MAX_RETRIES; i++) {
         try {
-            // Mantivemos o seu modelo e configs originais
             const response = await ai.models.generateContent({
-                model: 'gemini-2.5-flash', // Se esse funcionava, mantemos ele!
+                model: 'gemini-2.5-flash', 
                 contents: prompt,
-                config: { temperature: 0.1 } // Sem forçar JSON
+                config: { temperature: 0.1 }
             });
 
-            // Na sua lib, response.text é uma string direta (não função)
             let fullText = response.text ? response.text.trim() : "";
-
             if (!fullText) throw new Error("Resposta vazia");
 
-            // --- LÓGICA DE SEPARAÇÃO (PARSE) ---
             let prioridadeDetectada = 'M';
             let solucaoDetectada = fullText;
 
-            // Verifica se a resposta veio no formato "Letra|Texto"
             if (fullText.includes('|')) {
                 const partes = fullText.split('|');
                 const possivelPrioridade = partes[0].trim().toUpperCase();
                 
-                // Se a primeira parte for A, M ou B, extraímos ela
                 if (['A', 'M', 'B'].includes(possivelPrioridade)) {
                     prioridadeDetectada = possivelPrioridade;
-                    // O resto do texto é a solução (junta de volta caso tenha mais pipes)
+                    // Pega tudo após o primeiro pipe
                     solucaoDetectada = partes.slice(1).join('|').trim();
                 }
             }
+            
+            // 🚨 LIMPEZA EXTRA DE SEGURANÇA:
+            // Se mesmo com o prompt a IA teimar em escrever "Cálculo de Prioridade", a gente remove via código.
+            solucaoDetectada = solucaoDetectada
+                .replace(/Cálculo de Prioridade:[\s\S]*?(Solução Sugerida:|$)/gi, '$1') // Remove bloco de cálculo
+                .replace(/\*\*Análise:.*?\*\*/g, '') // Remove linhas de análise soltas
+                .trim();
 
             return {
                 prioridade: prioridadeDetectada,
@@ -85,9 +92,7 @@ async function gerarRespostaIA(categoria, descricao, titulo) {
             };
 
         } catch (error) {
-            // Tratamento de erro 503 (Server Overloaded)
-            if (error.status === 503 && i < MAX_RETRIES - 1) {
-                console.warn(`Tentativa ${i + 1} falhou (503). Aguardando ${currentDelay}ms...`);
+            if ((error.status === 503 || error.code === 503) && i < MAX_RETRIES - 1) {
                 await new Promise(resolve => setTimeout(resolve, currentDelay));
                 currentDelay *= 2; 
             } else {

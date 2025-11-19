@@ -303,9 +303,15 @@ router.get('/:id', async (req, res) => {
 
 router.post('/', async (req, res) => {
     try {
+        // 1. Extrai os campos do corpo da requisição
         const {
-            titulo, categoria, descricao, status, impacto,
-            usuarios, frequencia
+            titulo, 
+            categoria, 
+            descricao, 
+            status, 
+            impacto,    // <--- Importante para o cálculo
+            usuarios,   // <--- Importante para o cálculo
+            frequencia  // <--- Importante para o cálculo
         } = req.body;
 
         const pool = await getPool();
@@ -316,15 +322,22 @@ router.post('/', async (req, res) => {
         const dataAbertura = new Date(req.body.dataAbertura);
         const dataProblemaFormatada = dataProblemaInput ? new Date(dataProblemaInput) : dataAbertura;
 
-        // 1. CHAMA A IA
-        // (Certifique-se que seu iaService retorna { solucao, prioridade })
-        const respostaIA = await gerarRespostaIA(categoria, descricao, titulo);
+        // 2. CHAMA A IA PASSANDO TODOS OS PARAMETROS
+        // Agora passamos frequencia, impacto e usuarios para a função
+        const respostaIA = await gerarRespostaIA(
+            categoria, 
+            descricao, 
+            titulo, 
+            frequencia, 
+            impacto, 
+            usuarios
+        );
         
-        // 2. EXTRAI OS DADOS (Isso estava faltando ou confuso no seu código anterior)
+        // 3. Extrai o resultado calculado pela IA
         const solucaoFinal = respostaIA.solucao; 
-        const prioridadeFinal = respostaIA.prioridade || 'M'; // Garante 'M' se a IA falhar, mas usa a da IA se vier
+        const prioridadeFinal = respostaIA.prioridade || 'M';
 
-        console.log(`[POST] Novo Chamado: IA definiu Prioridade como: ${prioridadeFinal}`);
+        console.log(`[POST] Novo Chamado: IA calculou Prioridade: ${prioridadeFinal}`);
 
         await pool.request()
             .input('clienteId', sql.Int, clienteId)
@@ -334,11 +347,13 @@ router.post('/', async (req, res) => {
             .input('status', sql.VarChar(20), status || 'Aberto')
             .input('dataAbertura', sql.DateTime, new Date(dataAbertura))
             .input('dataProblema', sql.DateTime, dataProblemaFormatada)
+            
+            // Salva os dados originais no banco também
             .input('impacto', sql.VarChar(50), impacto || null)
             .input('usuarios', sql.VarChar(50), usuarios || null)
             .input('frequencia', sql.VarChar(50), frequencia || null)
             
-            // AQUI: Usa a variável corrigida
+            // Salva o resultado da IA
             .input('prioridade', sql.Char(1), prioridadeFinal) 
             .input('solucaoIA', sql.VarChar(1000), solucaoFinal)
 
@@ -353,7 +368,7 @@ router.post('/', async (req, res) => {
                 )
             `);
 
-        // Recupera o chamado criado
+        // Recupera o chamado criado (Seguro contra Race Condition se preferir usar OUTPUT, mas mantendo sua logica:)
         const insertedChamado = await pool.request()
             .query(`SELECT TOP 1 * FROM Chamado ORDER BY id_Cham DESC`);
 
