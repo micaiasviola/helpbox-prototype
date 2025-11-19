@@ -301,33 +301,32 @@ router.get('/:id', async (req, res) => {
 });
 
 
-//POST para criar um chamado
 router.post('/', async (req, res) => {
     try {
         const {
-            titulo,
-            categoria,
-            descricao,
-            status,
-            impacto,
-            usuarios,
-            frequencia
+            titulo, categoria, descricao, status, impacto,
+            usuarios, frequencia
         } = req.body;
 
         const pool = await getPool();
         const clienteId = req.session?.usuario?.id;
-        const prioridadePadrao = 'B';
+        
+        // Tratamento de Datas
         const dataProblemaInput = req.body.dataProblema;
         const dataAbertura = new Date(req.body.dataAbertura);
-
-        // Se o usuário não preencheu a data do problema, use a data de abertura.
         const dataProblemaFormatada = dataProblemaInput ? new Date(dataProblemaInput) : dataAbertura;
 
+        // 1. CHAMA A IA
+        // (Certifique-se que seu iaService retorna { solucao, prioridade })
+        const respostaIA = await gerarRespostaIA(categoria, descricao, titulo);
+        
+        // 2. EXTRAI OS DADOS (Isso estava faltando ou confuso no seu código anterior)
+        const solucaoFinal = respostaIA.solucao; 
+        const prioridadeFinal = respostaIA.prioridade || 'M'; // Garante 'M' se a IA falhar, mas usa a da IA se vier
 
-        const solucaoIA = await gerarRespostaIA(categoria, descricao, titulo);
+        console.log(`[POST] Novo Chamado: IA definiu Prioridade como: ${prioridadeFinal}`);
 
-
-        const result = await pool.request()
+        await pool.request()
             .input('clienteId', sql.Int, clienteId)
             .input('titulo', sql.VarChar(255), titulo)
             .input('categoria', sql.VarChar(50), categoria)
@@ -338,38 +337,31 @@ router.post('/', async (req, res) => {
             .input('impacto', sql.VarChar(50), impacto || null)
             .input('usuarios', sql.VarChar(50), usuarios || null)
             .input('frequencia', sql.VarChar(50), frequencia || null)
-            .input('prioridade', sql.Char(1), prioridadePadrao)
-
-            .input('solucaoIA', sql.VarChar(1000), solucaoIA)
+            
+            // AQUI: Usa a variável corrigida
+            .input('prioridade', sql.Char(1), prioridadeFinal) 
+            .input('solucaoIA', sql.VarChar(1000), solucaoFinal)
 
             .query(`
                 INSERT INTO Chamado (
                     clienteId_Cham, titulo_Cham, status_Cham, dataAbertura_Cham, categoria_Cham, descricao_Cham,
-                    dataProblema, impacto_Cham, usuarios_Cham, frequencia_Cham, prioridade_Cham, 
-                    solucaoIA_Cham  
+                    dataProblema, impacto_Cham, usuarios_Cham, frequencia_Cham, prioridade_Cham, solucaoIA_Cham  
                 )
                 VALUES (
                     @clienteId, @titulo, @status, @dataAbertura, @categoria, @descricao,
-                    @dataProblema, @impacto, @usuarios, @frequencia, @prioridade, 
-                    @solucaoIA
+                    @dataProblema, @impacto, @usuarios, @frequencia, @prioridade, @solucaoIA
                 )
             `);
 
-
+        // Recupera o chamado criado
         const insertedChamado = await pool.request()
-            .query(`
-                SELECT TOP 1 
-                    id_Cham, status_Cham, dataAbertura_Cham, titulo_Cham, prioridade_Cham, categoria_Cham, solucaoIA_Cham
-                FROM Chamado
-                ORDER BY id_Cham DESC
-            `);
+            .query(`SELECT TOP 1 * FROM Chamado ORDER BY id_Cham DESC`);
 
-        // VERIFICA SE O REGISTRO EXISTE ANTES DE TENTAR LER [0] (Correção do TypeError)
-        if (insertedChamado.recordset && insertedChamado.recordset.length > 0) {
+        if (insertedChamado.recordset.length > 0) {
             return res.status(201).json(insertedChamado.recordset[0]);
         }
+        throw new Error("Erro ao recuperar chamado.");
 
-        throw new Error("Chamado inserido, mas não pôde ser recuperado.");
     } catch (error) {
         console.error('Erro ao criar chamado:', error);
         res.status(500).json({ error: 'Erro ao criar chamado' });
@@ -377,11 +369,12 @@ router.post('/', async (req, res) => {
 });
 
 
-// PUT atualizar chamado 
 
+// PUT atualizar chamado 
 router.put('/:id', async (req, res) => {
     try {
         const { id } = req.params;
+       
         const {
             status_Cham,
             dataFechamento_Cham,
@@ -395,9 +388,7 @@ router.put('/:id', async (req, res) => {
         const inputs = [];
         let needsComma = false;
 
-        // Função auxiliar para adicionar campos ao SQL
         const addField = (name, value, type) => {
-            // Verifica se o valor é passado ou se é para ser explicitamente NULL (para tecResponsavel_Cham)
             if (typeof value !== 'undefined') {
                 if (needsComma) query += ', ';
                 query += `${name} = @${name}`;
@@ -406,26 +397,28 @@ router.put('/:id', async (req, res) => {
             }
         };
 
-
+        // Adiciona os campos permitidos
         addField('status_Cham', status_Cham, sql.VarChar(20));
-
-
-        if (typeof tecResponsavel_Cham !== 'undefined') {
-            const isNull = tecResponsavel_Cham === null || tecResponsavel_Cham === 'null';
-            addField('tecResponsavel_Cham', isNull ? null : parseInt(tecResponsavel_Cham), sql.Int);
-        }
-
         addField('solucaoTec_Cham', solucaoTec_Cham, sql.VarChar(1000));
         addField('solucaoFinal_Cham', solucaoFinal_Cham, sql.VarChar(1000));
-
         addField('dataFechamento_Cham', dataFechamento_Cham, sql.DateTime);
 
-        // Se nenhum campo válido foi enviado
-        if (inputs.length === 0) {
-            return res.status(400).json({ error: 'Nenhum campo de atualização válido fornecido.' });
+        // Lógica especial para tecnico responsavel (pode ser NULL)
+        if (typeof tecResponsavel_Cham !== 'undefined') {
+            const isNull = tecResponsavel_Cham === null || tecResponsavel_Cham === 'null';
+            if (needsComma) query += ', ';
+            query += `tecResponsavel_Cham = @tecResponsavel_Cham`;
+            inputs.push({ name: 'tecResponsavel_Cham', value: isNull ? null : parseInt(tecResponsavel_Cham), type: sql.Int });
+            needsComma = true;
         }
 
-        // Finaliza a query
+        // SE TENTAREM ENVIAR PRIORIDADE, NÓS IGNORAMOS PROPOSITALMENTE.
+        // O SQL não tem o campo prioridade_Cham, então ele mantém o que estava no banco.
+
+        if (inputs.length === 0) {
+            return res.status(400).json({ error: 'Nenhum campo válido.' });
+        }
+
         query += ' WHERE id_Cham = @id';
         inputs.push({ name: 'id', value: parseInt(id), type: sql.Int });
 
@@ -434,11 +427,10 @@ router.put('/:id', async (req, res) => {
 
         await request.query(query);
 
-        res.json({ success: true, message: 'Chamado atualizado com sucesso.' });
+        res.json({ success: true, message: 'Chamado atualizado.' });
     } catch (error) {
-
-        console.error('Erro ao executar UPDATE SQL:', error);
-        res.status(500).json({ error: 'Erro interno do servidor ao fechar o chamado.' });
+        console.error('Erro ao atualizar chamado:', error);
+        res.status(500).json({ error: 'Erro interno.' });
     }
 });
 
@@ -446,7 +438,7 @@ router.put('/:id', async (req, res) => {
 router.put('/escalar/:id', async (req, res) => {
     try {
         const { id } = req.params;
-        const { status_Cham, prioridade_Cham } = req.body; // Recebe o novo status e prioridade
+        const { status_Cham, } = req.body; // Recebe o novo status e prioridade
 
         // Garante que o ID e o status estejam presentes
         if (!id || !status_Cham) {
@@ -460,7 +452,7 @@ router.put('/escalar/:id', async (req, res) => {
             UPDATE Chamado 
             SET 
                 status_Cham = @status, 
-                prioridade_Cham = @prioridade,
+                
                 tecResponsavel_Cham = NULL -- Remove o técnico responsável, pois está sendo reescalado
             WHERE id_Cham = @id
         `;
@@ -468,7 +460,6 @@ router.put('/escalar/:id', async (req, res) => {
         await pool.request()
             .input('id', sql.Int, parseInt(id))
             .input('status', sql.VarChar(50), status_Cham)
-            .input('prioridade', sql.Char(1), prioridade_Cham || 'M') // Usa 'M' (Média) se não for especificado
             .query(query);
 
         res.json({ success: true, message: 'Chamado escalado com sucesso.' });

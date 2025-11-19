@@ -161,7 +161,7 @@ export async function apiEncaminharChamado(id) {
             credentials: 'include',
             body: JSON.stringify({
                 status_Cham: 'Em Andamento',
-                prioridade_Cham: 'M'
+                // prioridade_Cham: 'M'
             })
         });
         if (response.ok) {

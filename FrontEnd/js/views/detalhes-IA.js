@@ -5,13 +5,69 @@ import {
 } from "../api/chamados.js";
 import { store } from "../store.js";
 import { showConfirmationModal } from "../utils/feedbackmodal.js";
-
+// Importando a biblioteca 'marked' para converter Markdown em HTML
+import { marked } from 'https://cdn.jsdelivr.net/npm/marked/lib/marked.esm.js';
 
 /**
  * Constrói o template HTML para exibir os detalhes de um chamado
  * com lógica condicional para exibir botões de ação e feedback do cliente.
  */
 function getClienteDetalheTemplate(chamado) {
+    // -----------------------------------------------------------------
+    // BLOCO 0: ESTILOS CSS (INJETADO PARA FORMATAR O MARKDOWN)
+    // -----------------------------------------------------------------
+    const styles = `
+        <style>
+            /* Container da resposta da IA */
+            .ia-box {
+                background-color: #f8f9fa;
+                border-left: 5px solid #6c5ce7; /* Cor de destaque (Roxo IA) */
+                border-radius: 4px;
+                padding: 20px;
+                box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+                margin-bottom: 20px;
+                font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            }
+
+            /* Estilização do conteúdo gerado pelo Markdown */
+            .markdown-content {
+                color: #2d3436;
+                line-height: 1.6;
+                font-size: 15px;
+            }
+
+            /* Títulos dentro da resposta */
+            .markdown-content h1, .markdown-content h2, .markdown-content h3 {
+                margin-top: 15px;
+                margin-bottom: 10px;
+                color: #2d3436;
+                font-weight: 600;
+            }
+            .markdown-content h3:first-child { margin-top: 0; }
+
+            /* Listas (Bolinhas e Números) */
+            .markdown-content ul, .markdown-content ol {
+                padding-left: 25px;
+                margin-bottom: 15px;
+            }
+
+            .markdown-content li {
+                margin-bottom: 5px; /* Espaço entre itens da lista */
+            }
+
+            /* Negrito */
+            .markdown-content strong {
+                color: #000;
+                font-weight: 700;
+            }
+            
+            /* Parágrafos */
+            .markdown-content p {
+                margin-bottom: 10px;
+            }
+        </style>
+    `;
+
     // -----------------------------------------------------------------
     // BLOCO 1: VARIÁVEIS BÁSICAS E DE CONTROLE
     // -----------------------------------------------------------------
@@ -24,6 +80,11 @@ function getClienteDetalheTemplate(chamado) {
     const tecResponsavelId = chamado.tecResponsavel_Cham;
     const isTecResponsavel = usuarioLogadoId && (usuarioLogadoId === tecResponsavelId);
 
+    // Conversão do Markdown da IA para HTML
+    const solucaoIAHtml = chamado.solucaoIA_Cham 
+        ? marked.parse(chamado.solucaoIA_Cham) 
+        : "<em>Aguardando análise ou sem resposta inicial da IA.</em>";
+
 
     // -----------------------------------------------------------------
     // BLOCO 2: SEÇÃO DE RESPOSTA DO TÉCNICO
@@ -32,11 +93,9 @@ function getClienteDetalheTemplate(chamado) {
         ? `
         <hr/>
         <h3>Resposta da Equipe Técnica</h3>
-        <div class="tec-box" style="padding: 15px; border: 1px solid #007bff; background-color: #e6f7ff; margin-bottom: 20px;">
+        <div class="tec-box" style="padding: 15px; border: 1px solid #007bff; background-color: #e6f7ff; margin-bottom: 20px; border-radius: 4px;">
             <p><strong>Status:</strong> O problema foi analisado pela equipe técnica.</p>
-            <p id="tecResponseText">
-                ${chamado.solucaoTec_Cham}
-            </p>
+            <p id="tecResponseText" style="white-space: pre-wrap;">${chamado.solucaoTec_Cham}</p>
         </div>
         `
         : '';
@@ -90,7 +149,8 @@ function getClienteDetalheTemplate(chamado) {
     // -----------------------------------------------------------------
     // BLOCO 4: ESTRUTURA FINAL DO TEMPLATE
     // -----------------------------------------------------------------
-    return `<div class="card">
+    return `
+    ${styles} <div class="card">
         <div class="actions" style="margin-bottom: 20px;">
             <button id="btnVoltar" class="btn btn-secondary">
                 ← Voltar para Meus Chamados
@@ -106,10 +166,10 @@ function getClienteDetalheTemplate(chamado) {
         <hr/>
 
         <h3>Resposta da Inteligência Artificial</h3>
-        <div class="ia-box" style="padding: 15px; border: 1px solid #ddd; background-color: #f9f9f9;">
-            <p id="iaResponseText">
-                ${chamado.solucaoIA_Cham || "Aguardando ou Sem resposta inicial da IA."}
-            </p>
+        <div class="ia-box">
+            <div id="iaResponseText" class="markdown-content">
+                ${solucaoIAHtml}
+            </div>
         </div>
         
         ${solucaoTecnicoBlock}
@@ -117,7 +177,7 @@ function getClienteDetalheTemplate(chamado) {
         <hr/>
         
         ${acoesClienteBlock} <div class="actions">
-            <button class="btn btn-secondary" onclick="window.print()">印️ Imprimir Página</button>
+            <button class="btn btn-secondary" onclick="window.print()">🖨️ Imprimir Página</button>
         </div>
     </div>
     <div id="alert" style="margin-top:15px;"></div>`;
@@ -163,19 +223,15 @@ export class DetalhesIAView {
         const btnReabrir = document.getElementById('btnReabrir');
 
         if (btnRejeitar) {
-            // ❌ Não, Encaminhar para Técnico
             btnRejeitar.addEventListener('click', () => this.handleEncaminhar(id));
         }
         if (btnAceitar) {
-            // ✅ Sim, Fechar Chamado (Validar Solução IA/Tecnica)
             btnAceitar.addEventListener('click', () => this.handleFechar(id));
         }
         if (btnConcordar) {
-            // ✅ Concordo com a Solução (Feedback Final)
             btnConcordar.addEventListener('click', () => this.handleConcordar(id));
         }
         if (btnReabrir) {
-            // 🔄 Reabrir Chamado (Feedback Final)
             btnReabrir.addEventListener('click', () => this.handleReabrir(id));
         }
     }
@@ -229,7 +285,6 @@ export class DetalhesIAView {
     // FUNÇÕES DE AÇÃO PRINCIPAIS (EXECUTADAS APÓS CONFIRMAÇÃO)
     // =================================================================
 
-    /** Envia o chamado para o estado 'Em andamento' (aparecerá para o técnico). */
     async encaminharChamado(id) {
         document.getElementById('alert').innerHTML = '<div class="card info">Encaminhando para técnico...</div>';
         try {
@@ -241,7 +296,6 @@ export class DetalhesIAView {
         }
     }
 
-    /** NOVO/REFATORADO: Fecha o chamado pelo próprio cliente (validando a solução). */
     async fecharChamado(id) {
         document.getElementById('alert').innerHTML = '<div class="card info">Fechando chamado...</div>';
         try {
@@ -253,7 +307,6 @@ export class DetalhesIAView {
         }
     }
 
-    /** Cliente concorda com a solução: registra a concordância e mantém o status 'Fechado'. */
     async concordarSolucao(id) {
         document.getElementById('alert').innerHTML = '<div class="card info">Registrando concordância...</div>';
         try {
@@ -265,7 +318,6 @@ export class DetalhesIAView {
         }
     }
 
-    /** Cliente discorda da solução final e reabre o chamado. */
     async reabrirChamado(id) {
         document.getElementById('alert').innerHTML = '<div class="card info">Reabrindo chamado...</div>';
         try {

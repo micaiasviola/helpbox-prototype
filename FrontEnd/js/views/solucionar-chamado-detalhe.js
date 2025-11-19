@@ -1,14 +1,75 @@
 import { apiGetChamadoById, apiUpdateChamado } from "../api/chamados.js";
 import { store } from "../store.js";
-
 import { showConfirmationModal } from "../utils/feedbackmodal.js"; 
+// 1. Importando a biblioteca para formatar o texto
+import { marked } from 'https://cdn.jsdelivr.net/npm/marked/lib/marked.esm.js';
 
 function getSolucaoTemplate(chamado) {
+    // -----------------------------------------------------------------
+    // BLOCO 0: ESTILOS CSS (Para formatar a resposta da IA)
+    // -----------------------------------------------------------------
+    const styles = `
+        <style>
+            /* Estilo do container da IA */
+            .ia-box {
+                background-color: #f8f9fa;
+                border-left: 5px solid #6c5ce7; /* Roxo destaque */
+                border-radius: 4px;
+                padding: 20px;
+                box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+                margin-bottom: 20px;
+                font-family: 'Segoe UI', system-ui, sans-serif;
+            }
+
+            /* Estilo do conteúdo Markdown convertido */
+            .markdown-content {
+                color: #2d3436;
+                line-height: 1.6;
+                font-size: 15px;
+            }
+
+            /* Títulos */
+            .markdown-content h1, .markdown-content h2, .markdown-content h3 {
+                margin-top: 15px; 
+                margin-bottom: 10px;
+                color: #2d3436;
+                font-weight: 600;
+            }
+            .markdown-content h3:first-child { margin-top: 0; }
+
+            /* Listas */
+            .markdown-content ul, .markdown-content ol {
+                padding-left: 25px;
+                margin-bottom: 15px;
+            }
+            .markdown-content li {
+                margin-bottom: 5px;
+            }
+
+            /* Negrito */
+            .markdown-content strong {
+                color: #000;
+                font-weight: 700;
+            }
+            
+            /* Badge de prioridade se quiser exibir */
+            .badge-prioridade.A { background-color: #dc3545; color: white; padding: 2px 8px; border-radius: 4px; }
+            .badge-prioridade.M { background-color: #ffc107; color: black; padding: 2px 8px; border-radius: 4px; }
+            .badge-prioridade.B { background-color: #198754; color: white; padding: 2px 8px; border-radius: 4px; }
+        </style>
+    `;
+
     const dataAbertura = new Date(chamado.dataAbertura_Cham).toLocaleDateString();
     const nomeCliente = (chamado.clienteNome || 'Cliente') + ' ' + (chamado.clienteSobrenome || '');
     const nomeAbertoPor = nomeCliente.trim();
     
-    return `<div class="card">
+    // 2. CONVERSÃO DO MARKDOWN PARA HTML
+    const solucaoIAHtml = chamado.solucaoIA_Cham 
+        ? marked.parse(chamado.solucaoIA_Cham) 
+        : "<em>Nenhuma resposta da IA registrada.</em>";
+
+    return `
+    ${styles} <div class="card">
         <div class="actions" style="margin-bottom: 20px;">
             <button id="btnVoltar" class="btn btn-secondary">
                 ← Voltar para Solucionar Chamados
@@ -16,17 +77,24 @@ function getSolucaoTemplate(chamado) {
         </div>
         <h2>Solucionar Chamado #${chamado.id_Cham}</h2>
         
-        <p><strong>Status:</strong> <span class="badge ${chamado.status_Cham.toLowerCase()}">${chamado.status_Cham}</span></p>
-        <p><strong>Aberto por:</strong> ${nomeAbertoPor}</p>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px;">
+            <p><strong>Status:</strong> <span class="badge ${chamado.status_Cham.toLowerCase()}">${chamado.status_Cham}</span></p>
+            <p><strong>Prioridade IA:</strong> <span class="badge-prioridade ${chamado.prioridade_Cham}">${chamado.prioridade_Cham || 'N/A'}</span></p>
+            <p><strong>Aberto por:</strong> ${nomeAbertoPor}</p>
+            <p><strong>Categoria:</strong> ${chamado.categoria_Cham}</p>
+            <p><strong>Data:</strong> ${dataAbertura}</p>
+        </div>
+        
         <p><strong>Assunto:</strong> ${chamado.titulo_Cham}</p>
-        <p><strong>Categoria:</strong> ${chamado.categoria_Cham}</p>
-        <p><strong>Data de Abertura:</strong> ${dataAbertura}</p>
-        <p><strong>Descrição:</strong> ${chamado.descricao_Cham}</p>
+        <p><strong>Descrição:</strong><br/> ${chamado.descricao_Cham}</p>
         <hr/>
 
-        <h3>Resposta da IA (Encaminhada pelo Cliente)</h3>
-        <div class="ia-box" style="padding: 15px; border: 1px solid #ddd; background-color: #f9f9f9;">
-            <p>${chamado.solucaoIA_Cham || "Nenhuma resposta da IA registrada."}</p>
+        <h3>🤖 Sugestão da IA (Encaminhada pelo Cliente)</h3>
+        
+        <div class="ia-box">
+            <div class="markdown-content">
+                ${solucaoIAHtml}
+            </div>
         </div>
         
         <hr/>
@@ -77,7 +145,7 @@ export class SolucionarChamadoView {
     attachListeners(id) {
         document.getElementById('btnVoltar').addEventListener('click', () => this.voltarParaChamados());
         
-        // Adicionamos preventDefault por segurança, embora não seja form submit
+        // Adicionamos preventDefault por segurança
         document.getElementById('btnSalvarSolucao').addEventListener('click', (e) => {
             e.preventDefault();
             this.salvarRascunho(id);
@@ -93,19 +161,18 @@ export class SolucionarChamadoView {
         const solucao = document.getElementById('solucaoTecnico').value;
         const alertDiv = document.getElementById('alertSolucao');
 
-        // 2. Confirmação para Salvar Rascunho
+        // Confirmação para Salvar Rascunho
         const confirmar = await showConfirmationModal(
             'Salvar Rascunho', 
             'Deseja atualizar o rascunho da solução?'
         );
 
-        if (!confirmar) return; // Se clicar em "Não", para a execução
+        if (!confirmar) return; 
 
         alertDiv.innerHTML = '<div class="card info">Salvando rascunho...</div>';
         try {
             await apiUpdateChamado(id, { solucaoTec_Cham: solucao });
             alertDiv.innerHTML = '<div class="card success">Rascunho salvo com sucesso!</div>';
-            // Remove mensagem de sucesso após 3 segundos para limpar a tela
             setTimeout(() => { alertDiv.innerHTML = ''; }, 3000);
         } catch (error) {
             alertDiv.innerHTML = `<div class="card error">Falha ao salvar rascunho: ${error.message}</div>`;
@@ -121,13 +188,13 @@ export class SolucionarChamadoView {
             return;
         }
 
-        // 3. Confirmação Crítica para Finalizar
+        // Confirmação Crítica para Finalizar
         const confirmar = await showConfirmationModal(
             'Finalizar Chamado', 
             'Tem certeza que deseja finalizar este chamado? <b>Esta ação irá concluir o atendimento.</b>'
         );
 
-        if (!confirmar) return; // Se cancelar, nada acontece
+        if (!confirmar) return;
 
         alertDiv.innerHTML = '<div class="card info">Finalizando chamado...</div>';
         try {
