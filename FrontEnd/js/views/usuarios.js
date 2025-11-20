@@ -163,7 +163,7 @@ export function renderUsuarios() {
         <td>${u.cargo_User}</td>
         <td>${nivelAcesso[u.nivelAcesso_User] || u.nivelAcesso_User}</td>
         <td>
-          <button class="btn primary small" data-id="${u.id_User}" data-action="editar">Editar</button>
+          <button class="btn btn-third small" data-id="${u.id_User}" data-action="editar">Editar</button>
           <button class="btn btn-secondary small" data-id="${u.id_User}" data-action="remover">Remover</button>
         </td>`;
             body.appendChild(tr);

@@ -32,36 +32,38 @@ class MeusChamadosView {
     getTemplate() {
         return `
             <div class="toolbar">
-                <select id="filtroStatus" class="select filtro-status">
+                <select id="filtroStatus" class="select" style="max-width:220px">
                     <option value="">Todos os status</option>
                     <option ${this.filtroStatus === 'Aberto' ? 'selected' : ''}>Aberto</option>
                     <option ${this.filtroStatus === 'Em andamento' ? 'selected' : ''}>Em andamento</option>
                     <option ${this.filtroStatus === 'Fechado' ? 'selected' : ''}>Fechado</option>
                 </select>
-                <input id="busca" class="input input-busca" placeholder="Buscar por descrição..." value="${this.termoBusca}"/>
+                
+                <input id="busca" class="input" placeholder="Buscar por descrição..." value="${this.termoBusca}" style="max-width:320px"/>
+                
                 <button id="refreshChamados" class="btn">🔄 Atualizar</button>
             </div>
             
             <div class="loading" id="loadingChamados">Carregando chamados...</div>
             
-            <table class="table">
-                <thead>
-                    <tr>
-                        <th>ID Chamado</th>
-                        
-                        <th>Descrição</th>
-                        <th>Status</th>
-                        <th>Prioridade</th>
-                        <th>Categoria</th>
-                        <th>Data Abertura</th>
-                        <th>Ações</th>
-                    </tr>
-                </thead>
-                <tbody id="tbodyChamados">
-                </tbody>
-            </table>
-            
-            <div id="paginationContainer" class="pagination-container""></div>
+            <div class="table-responsive">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>ID Chamado</th>
+                            <th>Descrição</th>
+                            <th>Status</th>
+                            <th>Prioridade</th>
+                            <th>Categoria</th>
+                            <th>Data Abertura</th>
+                            <th>Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tbodyChamados">
+                    </tbody>
+                </table>
+            </div>
+            <div id="paginationContainer" class="pagination-container"></div>
         `;
     }
 

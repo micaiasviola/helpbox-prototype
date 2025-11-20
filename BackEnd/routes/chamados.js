@@ -51,12 +51,10 @@ router.get('/meus', async (req, res) => {
         return res.status(401).json({ error: 'Usuário não autenticado.' });
     }
 
-    // Garante que o nível de acesso é válido (1, 2, ou 3)
     if (nivelAcesso < 1 || nivelAcesso > 3) {
         return res.status(403).json({ error: 'Nível de acesso inválido para esta rota.' });
     }
 
-    // --- PREPARAÇÃO DOS PARÂMETROS ---
     const page = parseInt(req.query.page) || 1;
     const pageSize = parseInt(req.query.pageSize) || 6;
     const searchTerm = req.query.q || '';
@@ -64,13 +62,11 @@ router.get('/meus', async (req, res) => {
 
     const offset = (page - 1) * pageSize;
 
-    // Cláusula inicial (1=1 é obrigatória para o WHERE)
     let fullWhereClause = `1 = 1`;
 
     if (statusFilter) fullWhereClause += ` AND C.status_Cham = @statusFilter`;
     if (searchTerm) fullWhereClause += ` AND (C.titulo_Cham LIKE @searchTerm OR C.descricao_Cham LIKE @searchTerm)`;
 
-    // 🚨 APLICAÇÃO DO ESCOPO DE SEGURANÇA
     const scopedWhereClause = getDynamicWhereClause(nivelAcesso, fullWhereClause);
 
     try {
@@ -82,13 +78,19 @@ router.get('/meus', async (req, res) => {
             .input('statusFilter', sql.NVarChar, statusFilter)
             .input('searchTerm', sql.NVarChar, `%${searchTerm}%`);
 
-        // 🚨 Query unificada: 
+        // 🚨 ALTERAÇÃO AQUI: Nova lógica de ORDER BY
+        // Prioridade 0: Meus chamados em andamento
+        // Prioridade 1: O resto (ordenado por status e data)
         const querySQL = `
             SELECT C.*, U.nome_User, U.sobrenome_User 
             FROM Chamado AS C
             INNER JOIN Usuario AS U ON C.clienteId_Cham = U.id_User
             WHERE ${scopedWhereClause} 
             ORDER BY 
+                CASE 
+                    WHEN C.status_Cham = 'Em andamento' AND C.tecResponsavel_Cham = @usuarioId THEN 0 
+                    ELSE 1 
+                END ASC,
                 CASE C.status_Cham WHEN 'Em andamento' THEN 1 WHEN 'Aberto' THEN 2 WHEN 'Fechado' THEN 3 ELSE 9 END ASC,
                 C.dataAbertura_Cham DESC
             
@@ -126,14 +128,11 @@ router.get('/tecnico', async (req, res) => {
         return res.status(403).json({ error: 'Acesso negado. Necessário nível técnico.' });
     }
 
-    // Parâmetros de Paginação
     const page = parseInt(req.query.page) || 1;
     const pageSize = parseInt(req.query.pageSize) || 5;
     const offset = (page - 1) * pageSize;
 
-    // Cláusula de filtro (estrita para chamados livres)
     const baseWhereClause = `tecResponsavel_Cham IS NULL AND status_Cham = 'Em andamento'`;
-
     const orderByClause = `ORDER BY dataAbertura_Cham DESC`;
 
     try {
@@ -142,7 +141,6 @@ router.get('/tecnico', async (req, res) => {
             .input('offset', sql.Int, offset)
             .input('pageSize', sql.Int, pageSize);
 
-        // 1. SELECT dos dados paginados
         const paginatedQuery = `
             SELECT id_Cham, status_Cham, dataAbertura_Cham, titulo_Cham, 
                    prioridade_Cham, categoria_Cham, descricao_Cham, tecResponsavel_Cham
@@ -153,7 +151,6 @@ router.get('/tecnico', async (req, res) => {
             FETCH NEXT @pageSize ROWS ONLY;
         `;
 
-        // 2. SELECT do total de registros
         const countQuery = `
             SELECT COUNT(id_Cham) AS totalCount 
             FROM Chamado
@@ -182,20 +179,27 @@ router.get('/tecnico', async (req, res) => {
 // ====================================================================
 
 router.get('/', verificarAdm, async (req, res) => {
-    // Parâmetros de Paginação e Filtro
+    // 🚨 ALTERAÇÃO: Precisamos do ID do Admin para saber quais são "os dele"
+    const usuarioId = req.session?.usuario?.id;
+
     const page = parseInt(req.query.page) || 1;
-    const pageSize = parseInt(req.query.pageSize) || 5; // Usa 5 por padrão
+    const pageSize = parseInt(req.query.pageSize) || 5; 
     const searchTerm = req.query.q || '';
     const statusFilter = req.query.status || '';
     const offset = (page - 1) * pageSize;
 
-    // Cláusula de filtro
     let fullWhereClause = `1 = 1`;
     if (statusFilter) fullWhereClause += ` AND C.status_Cham = @statusFilter`;
     if (searchTerm) fullWhereClause += ` AND (C.titulo_Cham LIKE @searchTerm OR C.descricao_Cham LIKE @searchTerm)`;
 
+    // 🚨 ALTERAÇÃO: ORDER BY atualizado
+    // Se o chamado for 'Em andamento' E o responsável for o Admin logado (@usuarioId), prioridade 0 (Topo).
     const orderByClause = `
         ORDER BY 
+            CASE 
+                WHEN C.status_Cham = 'Em andamento' AND C.tecResponsavel_Cham = @usuarioId THEN 0 
+                ELSE 1 
+            END ASC,
             CASE C.status_Cham WHEN 'Em andamento' THEN 1 WHEN 'Aberto' THEN 2 WHEN 'Fechado' THEN 3 ELSE 9 END ASC,
             C.dataAbertura_Cham DESC
     `;
@@ -205,10 +209,11 @@ router.get('/', verificarAdm, async (req, res) => {
         const request = pool.request()
             .input('offset', sql.Int, offset)
             .input('pageSize', sql.Int, pageSize)
+            // 🚨 ALTERAÇÃO: Injetando o usuarioId na query do Admin
+            .input('usuarioId', sql.Int, usuarioId) 
             .input('statusFilter', sql.NVarChar, statusFilter)
             .input('searchTerm', sql.NVarChar, `%${searchTerm}%`);
 
-        // 1. SELECT dos dados paginados
         const paginatedQuery = `
             SELECT C.*, U_TECNICO.nome_User AS tecNome, U_TECNICO.sobrenome_User AS tecSobrenome
             FROM Chamado AS C
@@ -219,14 +224,12 @@ router.get('/', verificarAdm, async (req, res) => {
             FETCH NEXT @pageSize ROWS ONLY;
         `;
 
-        // 2. SELECT do total de registros
         const countQuery = `
             SELECT COUNT(C.id_Cham) AS totalCount 
             FROM Chamado AS C
             WHERE ${fullWhereClause};
         `;
 
-        // Executa as duas queries juntas
         const result = await request.query(paginatedQuery + countQuery);
 
         res.json({

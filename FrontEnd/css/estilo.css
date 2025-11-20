@@ -336,6 +336,14 @@ html, body {
     background: #11474b;
 }
 
+.btn-fourth{
+    background: #b78a00;
+    color: #fff;
+}
+
+.btn-fourth:hover {
+    background: #8c6b00;
+}
 
 .btn-ghost {
   background: transparent;
@@ -348,7 +356,7 @@ html, body {
 }
 
 /* ===============================
-   FORM / TABLE
+   FORM / TABLE (Atualizado)
 =============================== */
 .form {
   display: flex;
@@ -373,22 +381,65 @@ html, body {
   outline: none;
 }
 
+/* Container Responsivo para a Tabela */
+.table-responsive {
+  width: 100%;
+  overflow-x: auto; /* Cria barra de rolagem horizontal se necessário */
+  -webkit-overflow-scrolling: touch; /* Suavidade no mobile */
+  margin-top: 10px;
+  border-radius: var(--radius);
+  border: 1px solid #eee; /* Borda ao redor da tabela toda */
+}
+
 .table {
   width: 100%;
   border-collapse: collapse;
-  margin-top: 10px;
+  white-space: nowrap; /* Evita que datas e status quebrem linha */
 }
 
 .table th,
 .table td {
-  padding: 12px;
-  text-align: left;
+  padding: 12px 15px;
   border-bottom: 1px solid #eee;
+  
+  /* Centralização e Alinhamento Vertical */
+  text-align: center; 
+  vertical-align: middle; 
 }
 
 .table th {
   background: #f9fafb;
   font-weight: 600;
+  color: var(--color-sidebar);
+  text-transform: uppercase;
+  font-size: 0.85rem;
+  letter-spacing: 0.5px;
+}
+
+/* Exceção: A coluna de Descrição (geralmente a 3ª) 
+   fica melhor alinhada à esquerda e com quebra de linha permitida 
+*/
+.table th:nth-child(3),
+.table td:nth-child(3) {
+  text-align: left;
+  white-space: normal; /* Permite que o texto longo desça para outra linha */
+  min-width: 250px; /* Garante um tamanho mínimo para ler a descrição */
+  max-width: 400px;
+}
+
+/* Melhoria visual nos botões dentro da tabela */
+.table .btn {
+    padding: 6px 12px;
+    font-size: 0.9rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+}
+
+/* Efeito hover nas linhas */
+.table tbody tr:hover {
+    background-color: #f8f9fa;
 }
 
 .badge {
