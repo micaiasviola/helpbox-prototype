@@ -117,8 +117,8 @@ function getClienteDetalheTemplate(chamado) {
             <p>O seu chamado foi fechado pela equipe técnica. A solução apresentada resolveu o seu problema?</p>
             
             <div class="actions" id="feedbackActions">
-                <button id="btnConcordar" class="btn btn-success">✅ Concordo com a Solução (Manter Fechado)</button>
-                <button id="btnReabrir" class="btn btn-warning">🔄 Reabrir Chamado</button>
+                <button id="btnConcordar" class="btn btn-primary">✅ Concordo com a Solução (Manter Fechado)</button>
+                <button id="btnReabrir" class="btn btn-secondary">🔄 Reabrir Chamado</button>
             </div>
             
             <div id="alertFeedback" style="margin-top:15px;"></div>
@@ -136,11 +136,11 @@ function getClienteDetalheTemplate(chamado) {
             <div class="actions" id="validationActions">
                 
                 ${podeFechar ?
-                `<button id="btnAceitar" class="btn btn-success">✅ Fechar Chamado (Resolvido)</button>`
+                `<button id="btnAceitar" class="btn btn-primary">✅ Fechar Chamado (Resolvido)</button>`
                 : ''}
                     
                 ${podeEncaminhar ?
-                `<button id="btnRejeitar" class="btn btn-danger">❌ Não, Encaminhar para Técnico</button>`
+                `<button id="btnRejeitar" class="btn btn-secondary">❌ Não, Encaminhar para Técnico</button>`
                 : ''}
             </div>
         `;
@@ -176,9 +176,7 @@ function getClienteDetalheTemplate(chamado) {
         
         <hr/>
         
-        ${acoesClienteBlock} <div class="actions">
-            <button class="btn btn-secondary" onclick="window.print()">🖨️ Imprimir Página</button>
-        </div>
+        ${acoesClienteBlock} 
     </div>
     <div id="alert" style="margin-top:15px;"></div>`;
 }

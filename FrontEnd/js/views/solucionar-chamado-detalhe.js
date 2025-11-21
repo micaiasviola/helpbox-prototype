@@ -41,8 +41,8 @@ function getSolucaoTemplate(chamado, isReadOnly) {
     // Botões de ação (Salvar/Finalizar) somem se for apenas leitura
     const buttonsHtml = isReadOnly ? '' : `
         <div class="actions" style="margin-top: 20px;">
-            <button id="btnSalvarSolucao" class="btn btn-success">💾 Salvar Rascunho</button>
-            <button id="btnFinalizar" class="btn btn-danger">✓ Finalizar Chamado</button>
+            <button id="btnSalvarSolucao" class="btn btn-third">💾 Salvar Rascunho</button>
+            <button id="btnFinalizar" class="btn btn-primary">✓ Finalizar Chamado</button>
         </div>
     `;
 
