@@ -419,12 +419,35 @@ html, body {
 /* Exceção: A coluna de Descrição (geralmente a 3ª) 
    fica melhor alinhada à esquerda e com quebra de linha permitida 
 */
+.table th:nth-child(1),
+.table td:nth-child(1) {
+    width: 50px;
+    text-align: center;
+}
+
+/* 2. Coluna de DESCRIÇÃO (2ª coluna) - A que estava quebrando */
+.col-descricao {
+    text-align: left;
+    max-width: 300px;       /* Limite de largura */
+    white-space: nowrap;    /* Não quebra linha */
+    overflow: hidden;       /* Esconde o excesso */
+    text-overflow: ellipsis; /* Coloca "..." */
+    
+    /* Removemos o 'cursor: help' aqui. 
+       O cursor de "mãozinha" (pointer) já está no inline style do JS */
+}
+
+/* Opcional: Mostrar texto completo ao passar o mouse (Tooltip simples) */
+.table td:nth-child(2):hover {
+    position: relative; 
+    /* Nota: Para tooltips complexos, remova o overflow no hover ou use title="" */
+}
+
+/* 3. Coluna de STATUS (3ª coluna) - Ajuste para não ficar espremida */
 .table th:nth-child(3),
 .table td:nth-child(3) {
-  text-align: left;
-  white-space: normal; /* Permite que o texto longo desça para outra linha */
-  min-width: 250px; /* Garante um tamanho mínimo para ler a descrição */
-  max-width: 400px;
+    width: 120px;
+    text-align: center;
 }
 
 /* Melhoria visual nos botões dentro da tabela */

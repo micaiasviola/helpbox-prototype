@@ -88,12 +88,9 @@ export async function apiCreateChamado(dados) {
     }
 }
 
-/**
- * Busca os chamados do cliente logado pelo ID (ou confia na session/cookie)
- * @param {number} clienteId O ID do cliente logado.
- */
-export async function apiGetMeusChamados(page = 1, pageSize = 5, q = '', status = '') { 
+export async function apiGetMeusChamados(page = 1, pageSize = 5, q = '', status = '', tipo = '') { 
     try {
+        // Monta a URL base
         let url = `${API_BASE}/chamados/meus?page=${page}&pageSize=${pageSize}`;
         
         if (q) {
@@ -104,6 +101,12 @@ export async function apiGetMeusChamados(page = 1, pageSize = 5, q = '', status 
             url += `&status=${encodeURIComponent(status)}`; 
         }
 
+        // 🚨 A CORREÇÃO ESTÁ AQUI:
+        // Verifica se 'tipo' foi passado e adiciona na URL para o Backend receber
+        if (tipo) {
+            url += `&tipo=${encodeURIComponent(tipo)}`;
+        }
+
         const response = await fetch(url, {
             credentials: 'include'
         });
@@ -112,7 +115,6 @@ export async function apiGetMeusChamados(page = 1, pageSize = 5, q = '', status 
             return await response.json();
         }
 
-        // Se a resposta não for OK, tenta pegar a mensagem de erro específica.
         let errorData = {};
         try {
             errorData = await response.json();

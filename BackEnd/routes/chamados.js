@@ -8,66 +8,85 @@ const { getPool, sql } = require('../db.js');
 const verificarAdm = require('../middlewares/verificarADM.js');
 
 /**
- * Constrói a cláusula WHERE baseada no nível de acesso do usuário.
+ * Constrói a cláusula WHERE baseada no nível de acesso E no filtro de tipo.
  */
-function getDynamicWhereClause(nivelAcesso, fullWhereClause) {
+function getDynamicWhereClause(nivelAcesso, fullWhereClause, tipoFilter) {
     let baseWhere = fullWhereClause;
-
-    // Inicia a cláusula de escopo
     let scopeClause = "";
 
-    if (nivelAcesso === 1) {
-        // NÍVEL 1 (CLIENTE): Vê APENAS o que abriu.
+    // 1. Filtro Específico (Dropdown selecionado)
+    if (tipoFilter === 'criado') {
+        // Apenas o que eu abri
         scopeClause = `C.clienteId_Cham = @usuarioId`;
     }
-    else if (nivelAcesso === 2) {
-        // NÍVEL 2 (TÉCNICO): Vê o que está resolvendo OU o que ele abriu.
-        scopeClause = `C.tecResponsavel_Cham = @usuarioId OR C.clienteId_Cham = @usuarioId`;
+    else if (tipoFilter === 'atribuido') {
+        // Apenas o que eu estou resolvendo
+        scopeClause = `C.tecResponsavel_Cham = @usuarioId`;
     }
-    else if (nivelAcesso === 3) {
-        // NÍVEL 3 (ADMINISTRADOR) - FOCO PESSOAL:
-        // Vê APENAS os que ele está resolvendo (como tec) OU os que ele abriu (como cliente).
-        scopeClause = `C.tecResponsavel_Cham = @usuarioId OR C.clienteId_Cham = @usuarioId`;
+    // 2. Visão Padrão (Sem filtro selecionado)
+    else {
+        if (nivelAcesso === 1) {
+            scopeClause = `C.clienteId_Cham = @usuarioId`;
+        }
+        else if (nivelAcesso >= 2) {
+            // Técnico vê os dois (o que resolve e o que abriu)
+            scopeClause = `(C.tecResponsavel_Cham = @usuarioId OR C.clienteId_Cham = @usuarioId)`;
+        }
     }
 
-    // Se a cláusula de escopo foi definida (para qualquer nível), aplicamos o filtro pessoal.
     if (scopeClause) {
-        baseWhere += ` AND (${scopeClause})`;
+        baseWhere += ` AND ${scopeClause}`;
     }
 
     return baseWhere;
 }
 
-
 // ====================================================================
-// ROTA 1: /meus (TODOS OS NÍVEIS - FOCO PESSOAL)
+// ROTA 1: /meus (ATUALIZADA COM ORDENAÇÃO DINÂMICA)
 // ====================================================================
 
 router.get('/meus', async (req, res) => {
     const usuarioId = req.session?.usuario?.id;
     const nivelAcesso = req.session?.usuario?.nivel_acesso;
 
-    if (!usuarioId) {
-        return res.status(401).json({ error: 'Usuário não autenticado.' });
-    }
-
-    if (nivelAcesso < 1 || nivelAcesso > 3) {
-        return res.status(403).json({ error: 'Nível de acesso inválido para esta rota.' });
-    }
+    if (!usuarioId) return res.status(401).json({ error: 'Não autenticado' });
+    if (nivelAcesso < 1 || nivelAcesso > 3) return res.status(403).json({ error: 'Nível inválido' });
 
     const page = parseInt(req.query.page) || 1;
     const pageSize = parseInt(req.query.pageSize) || 6;
     const searchTerm = req.query.q || '';
     const statusFilter = req.query.status || '';
 
+    // Captura o tipo ('criado' ou 'atribuido')
+    const tipoFilter = req.query.tipo || '';
+
     const offset = (page - 1) * pageSize;
 
+    // Cláusula WHERE base
     let fullWhereClause = `1 = 1`;
-
     if (statusFilter) fullWhereClause += ` AND C.status_Cham = @statusFilter`;
     if (searchTerm) fullWhereClause += ` AND (C.titulo_Cham LIKE @searchTerm OR C.descricao_Cham LIKE @searchTerm)`;
 
-    const scopedWhereClause = getDynamicWhereClause(nivelAcesso, fullWhereClause);
+    // Aplica o escopo (Filtro de Tipo)
+    const scopedWhereClause = getDynamicWhereClause(nivelAcesso, fullWhereClause, tipoFilter);
+    // 🚨 CORREÇÃO DO PROBLEMA DE ORDENAÇÃO 🚨
+    let orderByClause = '';
+
+    if (tipoFilter === 'criado') {
+        // Se filtrei "Que eu abri", ordeno por DATA (Cronológica)
+        orderByClause = `ORDER BY C.dataAbertura_Cham DESC`;
+    } else {
+        // Se é "Todos" ou "Atribuído", priorizo meu trabalho (Ordem 0)
+        orderByClause = `
+            ORDER BY 
+                CASE 
+                    WHEN C.status_Cham = 'Em andamento' AND C.tecResponsavel_Cham = @usuarioId THEN 0 
+                    ELSE 1 
+                END ASC,
+                CASE C.status_Cham WHEN 'Em andamento' THEN 1 WHEN 'Aberto' THEN 2 WHEN 'Fechado' THEN 3 ELSE 9 END ASC,
+                C.dataAbertura_Cham DESC
+        `;
+    }
 
     try {
         const pool = await getPool();
@@ -78,21 +97,12 @@ router.get('/meus', async (req, res) => {
             .input('statusFilter', sql.NVarChar, statusFilter)
             .input('searchTerm', sql.NVarChar, `%${searchTerm}%`);
 
-        // 🚨 ALTERAÇÃO AQUI: Nova lógica de ORDER BY
-        // Prioridade 0: Meus chamados em andamento
-        // Prioridade 1: O resto (ordenado por status e data)
         const querySQL = `
             SELECT C.*, U.nome_User, U.sobrenome_User 
             FROM Chamado AS C
             INNER JOIN Usuario AS U ON C.clienteId_Cham = U.id_User
             WHERE ${scopedWhereClause} 
-            ORDER BY 
-                CASE 
-                    WHEN C.status_Cham = 'Em andamento' AND C.tecResponsavel_Cham = @usuarioId THEN 0 
-                    ELSE 1 
-                END ASC,
-                CASE C.status_Cham WHEN 'Em andamento' THEN 1 WHEN 'Aberto' THEN 2 WHEN 'Fechado' THEN 3 ELSE 9 END ASC,
-                C.dataAbertura_Cham DESC
+            ${orderByClause} -- 🚨 Injeta a ordenação dinâmica aqui
             
             OFFSET @offset ROWS
             FETCH NEXT @pageSize ROWS ONLY;
@@ -113,7 +123,7 @@ router.get('/meus', async (req, res) => {
 
     } catch (error) {
         console.error('Erro ao buscar meus chamados:', error);
-        res.status(500).json({ error: 'Erro interno ao buscar meus chamados.' });
+        res.status(500).json({ error: 'Erro interno.' });
     }
 });
 
@@ -183,7 +193,7 @@ router.get('/', verificarAdm, async (req, res) => {
     const usuarioId = req.session?.usuario?.id;
 
     const page = parseInt(req.query.page) || 1;
-    const pageSize = parseInt(req.query.pageSize) || 5; 
+    const pageSize = parseInt(req.query.pageSize) || 5;
     const searchTerm = req.query.q || '';
     const statusFilter = req.query.status || '';
     const offset = (page - 1) * pageSize;
@@ -210,7 +220,7 @@ router.get('/', verificarAdm, async (req, res) => {
             .input('offset', sql.Int, offset)
             .input('pageSize', sql.Int, pageSize)
             // 🚨 ALTERAÇÃO: Injetando o usuarioId na query do Admin
-            .input('usuarioId', sql.Int, usuarioId) 
+            .input('usuarioId', sql.Int, usuarioId)
             .input('statusFilter', sql.NVarChar, statusFilter)
             .input('searchTerm', sql.NVarChar, `%${searchTerm}%`);
 
@@ -308,10 +318,10 @@ router.post('/', async (req, res) => {
     try {
         // 1. Extrai os campos do corpo da requisição
         const {
-            titulo, 
-            categoria, 
-            descricao, 
-            status, 
+            titulo,
+            categoria,
+            descricao,
+            status,
             impacto,    // <--- Importante para o cálculo
             usuarios,   // <--- Importante para o cálculo
             frequencia  // <--- Importante para o cálculo
@@ -319,7 +329,7 @@ router.post('/', async (req, res) => {
 
         const pool = await getPool();
         const clienteId = req.session?.usuario?.id;
-        
+
         // Tratamento de Datas
         const dataProblemaInput = req.body.dataProblema;
         const dataAbertura = new Date(req.body.dataAbertura);
@@ -328,16 +338,16 @@ router.post('/', async (req, res) => {
         // 2. CHAMA A IA PASSANDO TODOS OS PARAMETROS
         // Agora passamos frequencia, impacto e usuarios para a função
         const respostaIA = await gerarRespostaIA(
-            categoria, 
-            descricao, 
-            titulo, 
-            frequencia, 
-            impacto, 
+            categoria,
+            descricao,
+            titulo,
+            frequencia,
+            impacto,
             usuarios
         );
-        
+
         // 3. Extrai o resultado calculado pela IA
-        const solucaoFinal = respostaIA.solucao; 
+        const solucaoFinal = respostaIA.solucao;
         const prioridadeFinal = respostaIA.prioridade || 'M';
 
         console.log(`[POST] Novo Chamado: IA calculou Prioridade: ${prioridadeFinal}`);
@@ -350,14 +360,14 @@ router.post('/', async (req, res) => {
             .input('status', sql.VarChar(20), status || 'Aberto')
             .input('dataAbertura', sql.DateTime, new Date(dataAbertura))
             .input('dataProblema', sql.DateTime, dataProblemaFormatada)
-            
+
             // Salva os dados originais no banco também
             .input('impacto', sql.VarChar(50), impacto || null)
             .input('usuarios', sql.VarChar(50), usuarios || null)
             .input('frequencia', sql.VarChar(50), frequencia || null)
-            
+
             // Salva o resultado da IA
-            .input('prioridade', sql.Char(1), prioridadeFinal) 
+            .input('prioridade', sql.Char(1), prioridadeFinal)
             .input('solucaoIA', sql.VarChar(1000), solucaoFinal)
 
             .query(`
@@ -392,7 +402,7 @@ router.post('/', async (req, res) => {
 router.put('/:id', async (req, res) => {
     try {
         const { id } = req.params;
-       
+
         const {
             status_Cham,
             dataFechamento_Cham,

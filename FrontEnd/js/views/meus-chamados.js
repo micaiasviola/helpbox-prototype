@@ -13,14 +13,21 @@ const DEFAULT_PAGE_SIZE = 5;
 class MeusChamadosView {
     constructor(containerId = 'view') {
         this.container = document.getElementById(containerId);
-        this.chamados = []; // Mantém apenas a lista da página atual
+        this.chamados = [];
+
+        // Filtros
         this.filtroStatus = '';
+        this.filtroTipo = '';
         this.termoBusca = '';
+
         this.currentPage = 1;
         this.totalCount = 0;
         this.pageSize = DEFAULT_PAGE_SIZE;
         this.usuarioLogadoId = store.usuarioLogado?.id || null;
         this.nivelAcesso = store.usuarioLogado?.nivel_acesso || 0;
+
+        // Garante a instância global para os onclicks
+        window.meusChamadosView = this;
     }
 
     async render() {
@@ -30,16 +37,26 @@ class MeusChamadosView {
     }
 
     getTemplate() {
+        const selectTipoHtml = this.nivelAcesso >= NIVEL_TECNICO ? `
+            <select id="filtroTipo" class="select" style="max-width:200px; border-left: 3px solid #6c5ce7;">
+                <option value="">Todos os Vínculos</option>
+                <option value="atribuido" ${this.filtroTipo === 'atribuido' ? 'selected' : ''}>🛠️ Para eu resolver</option>
+                <option value="criado" ${this.filtroTipo === 'criado' ? 'selected' : ''}>👤 Que eu abri</option>
+            </select>
+        ` : '';
+
         return `
-            <div class="toolbar">
-                <select id="filtroStatus" class="select" style="max-width:220px">
+            <div class="toolbar" style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+                ${selectTipoHtml}
+
+                <select id="filtroStatus" class="select" style="max-width:180px">
                     <option value="">Todos os status</option>
                     <option ${this.filtroStatus === 'Aberto' ? 'selected' : ''}>Aberto</option>
                     <option ${this.filtroStatus === 'Em andamento' ? 'selected' : ''}>Em andamento</option>
                     <option ${this.filtroStatus === 'Fechado' ? 'selected' : ''}>Fechado</option>
                 </select>
                 
-                <input id="busca" class="input" placeholder="Buscar por descrição..." value="${this.termoBusca}" style="max-width:320px"/>
+                <input id="busca" class="input" autocomplete="off" placeholder="Buscar por descrição..." value="${this.termoBusca}" style="max-width:300px"/>
                 
                 <button id="refreshChamados" class="btn">🔄 Atualizar</button>
             </div>
@@ -50,68 +67,107 @@ class MeusChamadosView {
                 <table class="table">
                     <thead>
                         <tr>
-                            <th>ID Chamado</th>
-                            <th>Descrição</th>
+                            <th>ID</th>
+                            <th class="col-descricao">Descrição</th>
                             <th>Status</th>
                             <th>Prioridade</th>
                             <th>Categoria</th>
-                            <th>Data Abertura</th>
+                            <th>Data</th>
+                            <th>Vínculo</th> 
                             <th>Ações</th>
                         </tr>
                     </thead>
-                    <tbody id="tbodyChamados">
-                    </tbody>
+                    <tbody id="tbodyChamados"></tbody>
                 </table>
             </div>
             <div id="paginationContainer" class="pagination-container"></div>
+
+            <dialog id="descModal" style="
+                position: fixed;
+                inset: 0;
+                margin: auto;
+                border: none; 
+                border-radius: 8px; 
+                padding: 20px; 
+                max-width: 600px; 
+                width: 90%; 
+                box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+                z-index: 10000;
+            ">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+                    <h3 style="margin:0; color:#333;">Descrição do Chamado</h3>
+                    <button onclick="document.getElementById('descModal').close()" style="background:none; border:none; font-size:20px; cursor:pointer;">&times;</button>
+                </div>
+                
+                <div id="descModalContent" style="
+                    line-height: 1.6; 
+                    color: #555; 
+                    max-height: 60vh; 
+                    overflow-y: auto; 
+                    white-space: pre-wrap;
+                    padding-right: 5px;
+                "></div>
+                
+                <div style="text-align:right; margin-top:20px;">
+                    <button class="btn btn-secondary" onclick="document.getElementById('descModal').close()">Fechar</button>
+                </div>
+            </dialog>
         `;
     }
 
     /**
-     * Dispara o carregamento dos chamados a partir do servidor.
-     * @param {boolean} resetPage Se a página atual deve ser resetada para 1.
+     * Busca o texto completo e abre o modal
      */
+    verDescricaoCompleta(id) {
+        const chamado = this.chamados.find(c => c.id_Cham === id);
+        if (chamado) {
+            const modal = document.getElementById('descModal');
+            const content = document.getElementById('descModalContent');
+            content.innerText = chamado.descricao_Cham;
+            modal.showModal();
+        }
+    }
+
     triggerLoad(resetPage = true) {
         if (resetPage) {
             this.currentPage = 1;
         }
-        // Chamado com forceReload=true para ignorar o cache (se ele existisse)
         this.loadChamados(true);
     }
 
     attachListeners() {
         const filtroStatusEl = document.getElementById('filtroStatus');
+        const filtroTipoEl = document.getElementById('filtroTipo');
         const buscaEl = document.getElementById('busca');
         const refreshEl = document.getElementById('refreshChamados');
 
-        // Listener de Filtro de Status (Dispara busca GLOBAL no servidor)
         if (filtroStatusEl) {
             filtroStatusEl.addEventListener('change', (e) => {
                 this.filtroStatus = e.target.value;
-                this.termoBusca = document.getElementById('busca').value; // Mantém a busca
-                this.triggerLoad(true); // Reseta a página para 1 e recarrega
+                this.triggerLoad(true);
             });
         }
 
-        // Listener de Busca (Dispara busca GLOBAL no servidor)
+        if (filtroTipoEl) {
+            filtroTipoEl.addEventListener('change', (e) => {
+                this.filtroTipo = e.target.value;
+                this.triggerLoad(true);
+            });
+        }
+
         if (buscaEl) {
             let debounceTimeout;
             buscaEl.addEventListener('input', (e) => {
                 clearTimeout(debounceTimeout);
-
-                // Usamos debounce para não sobrecarregar o servidor a cada tecla
                 debounceTimeout = setTimeout(() => {
                     this.termoBusca = e.target.value.toLowerCase();
-                    this.filtroStatus = document.getElementById('filtroStatus').value; // Mantém o status
-                    this.triggerLoad(true); // Reseta a página para 1 e recarrega
-                }, 300); // Espera 300ms após a digitação
+                    this.triggerLoad(true);
+                }, 300);
             });
         }
 
-        // Listener de Atualizar
         if (refreshEl) {
             refreshEl.addEventListener('click', () => {
-                // Ao atualizar, mantém os filtros e recarrega a página 1
                 this.triggerLoad(true);
             });
         }
@@ -124,9 +180,6 @@ class MeusChamadosView {
         this.loadChamados(true);
     }
 
-    /**
-     * Carrega os chamados do servidor, enviando página, tamanho, busca e filtro.
-     */
     async loadChamados() {
         const loadingDiv = document.getElementById('loadingChamados');
         const tbody = document.getElementById('tbodyChamados');
@@ -135,186 +188,120 @@ class MeusChamadosView {
         if (tbody) tbody.innerHTML = '';
 
         try {
-            // 🚨 NOVO: Passando todos os parâmetros de filtragem para a API
             const response = await apiGetMeusChamados(
                 this.currentPage,
                 this.pageSize,
                 this.termoBusca,
-                this.filtroStatus
+                this.filtroStatus,
+                this.filtroTipo
             );
 
             this.chamados = response.chamados;
             this.totalCount = response.totalCount;
 
-            this.renderTable(this.chamados); // Apenas renderiza, sem filtro local
+            this.renderTable(this.chamados);
             this.renderPagination();
 
             if (this.chamados.length === 0 && tbody) {
-                tbody.innerHTML = '<tr><td colspan="8" class="td-center"">Nenhum chamado encontrado.</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; padding:20px;">Nenhum chamado encontrado com os filtros atuais.</td></tr>';
             }
         } catch (error) {
-            if (tbody) tbody.innerHTML = `<tr><td colspan="8" class="td-error"">Erro ao carregar chamados: ${error.message}</td></tr>`;
+            if (tbody) tbody.innerHTML = `<tr><td colspan="8" class="td-error">Erro ao carregar chamados: ${error.message}</td></tr>`;
             console.error(error);
         } finally {
             if (loadingDiv) loadingDiv.style.display = 'none';
         }
     }
 
-    
-
     getActionButton(chamadoId, status, clienteId_Cham) {
         const statusLower = status.toLowerCase();
+        const isAuthor = Number(this.usuarioLogadoId) === Number(clienteId_Cham);
 
-        // Variável para checar se o usuário logado é o autor do chamado
-        const isAuthor = this.usuarioLogadoId === clienteId_Cham;
-
-        // --- 1. LÓGICA DO CLIENTE/AUTOR ---
-        // Se o usuário logado é o autor (Nível 1, ou Admin abrindo para si mesmo)
-        // Ele SEMPRE deve ver o botão de Cliente ("Ver Solução"), a menos que seja um Nível 2 que pegou.
         if (isAuthor) {
-            // Se o Admin/Técnico é o autor, ele deve ver como um cliente (Ver Solução)
-            return `
-                <button class="btn btn-primary btn-sm" onclick="detalharChamadoIA(${chamadoId})">
-                    Ver Solução
-                </button>
-            `;
+            return `<button class="btn btn-primary btn-sm" onclick="detalharChamadoIA(${chamadoId})">Ver Solução</button>`;
         }
 
-        // --- 2. LÓGICA DO TÉCNICO/SOLUCIONADOR ---
-        // Se não é o autor, mas é um Técnico/Admin que está no escopo de solução (Nível >= 2).
         if (this.nivelAcesso >= NIVEL_TECNICO) {
+            if (statusLower !== 'fechado' && statusLower !== 'resolvido') {
+                return `<button class="btn btn-third btn-sm" onclick="iniciarSolucao(${chamadoId})">Resolver</button>`;
+            }
+            return `<button class="btn btn-secondary btn-sm" onclick="detalharChamadoIA(${chamadoId})">Visualizar</button>`;
+        }
 
-            // Se for um chamado ativo, ele pode continuar solucionando.
-            if (statusLower !== 'fechado') {
-                return `
-                    <button class="btn btn-third btn-sm" onclick="iniciarSolucao(${chamadoId})">
-                        Continuar Solucionando
-                    </button>
-                `;
+        return `<button class="btn btn-secondary btn-sm" disabled>Visualizar</button>`;
+    }
+
+    renderPagination() {
+        const totalPages = Math.ceil(this.totalCount / this.pageSize);
+        const paginationContainer = document.getElementById('paginationContainer');
+        const instanceName = 'meusChamadosView';
+
+        if (!paginationContainer) return;
+        if (totalPages <= 1) {
+            paginationContainer.innerHTML = '';
+            return;
+        }
+
+        let buttons = '';
+
+        if (this.currentPage > 1) {
+            buttons += `<button class="btn btn-sm" onclick="window.${instanceName}.goToPage(${this.currentPage - 1})">←</button>`;
+        }
+
+        for (let i = 1; i <= totalPages; i++) {
+            if (i === 1 || i === totalPages || (i >= this.currentPage - 1 && i <= this.currentPage + 1)) {
+                const activeClass = i === this.currentPage ? 'primary' : 'secondary';
+                buttons += `<button class="btn btn-sm ${activeClass}" onclick="window.${instanceName}.goToPage(${i})">${i}</button>`;
+            } else if (i === this.currentPage - 2 || i === this.currentPage + 2) {
+                buttons += `<span class="pagination-ellipsis">...</span>`;
             }
         }
 
-        // Se o chamado foi aberto por outra pessoa, e o usuário logado não é técnico,
-        // ou se não for um cenário de atribuição/autoria, volta para a visão padrão.
-        return `
-            <button class="btn btn-primary btn-sm" onclick="detalharChamadoIA(${chamadoId})">
-                Ver Solução
-            </button>
-        `;
+        if (this.currentPage < totalPages) {
+            buttons += `<button class="btn btn-sm" onclick="window.${instanceName}.goToPage(${this.currentPage + 1})">→</button>`;
+        }
+
+        paginationContainer.innerHTML = `<div class="pagination" style="display:flex; gap:5px; justify-content:center; margin-top:15px;">${buttons}</div>`;
     }
 
-   renderPagination() {
-        const totalPages = Math.ceil(this.totalCount / this.pageSize);
-        const paginationContainer = document.getElementById('paginationContainer');
-        const instanceName = 'meusChamadosView'; // Nome da instância global
-
-        if (!paginationContainer || totalPages <= 1) {
-            if (paginationContainer) paginationContainer.innerHTML = '';
-            return;
-        }
-
-        let buttons = '';
-        let pageNumbersToRender = [];
-
-        // 1. Caso de poucas páginas (mostrar todas)
-        if (totalPages <= 5) {
-            for (let i = 1; i <= totalPages; i++) {
-                pageNumbersToRender.push(i);
-            }
-        } else {
-            // 2. Lógica para mostrar 1, Última e 3 botões no meio
-            let start = 0;
-            let end = 0;
-
-            if (this.currentPage <= 3) {
-                start = 1; end = 3;
-            } else if (this.currentPage > totalPages - 3) {
-                start = totalPages - 2; end = totalPages;
-            } else {
-                start = this.currentPage - 1; end = this.currentPage + 1;
-            }
-
-            // Adiciona a Página 1 (fixa)
-            pageNumbersToRender.push(1);
-            
-            // Adiciona os botões centrais (excluindo 1 e totalPages se estiverem no range)
-            for (let i = start; i <= end; i++) {
-                if (i > 1 && i < totalPages) {
-                    pageNumbersToRender.push(i);
-                }
-            }
-
-            // Adiciona a Última Página (fixa)
-            if (totalPages > 1) {
-                pageNumbersToRender.push(totalPages);
-            }
-
-            // Filtra duplicatas e ordena para processamento de reticências
-            pageNumbersToRender = [...new Set(pageNumbersToRender)].sort((a, b) => a - b);
-        }
-        
-        
-        // --- RENDERIZAÇÃO FINAL (Anterior, Números/Reticências, Próximo) ---
-
-        // 1. Botão ANTERIOR
-        if (this.currentPage > 1) {
-            buttons += `<button class="btn btn-sm" onclick="window.${instanceName}.goToPage(${this.currentPage - 1})">← Anterior</button>`;
-        }
-
-        // 2. Números e Reticências
-        let prevPage = 0;
-        for (const pageNum of pageNumbersToRender) {
-            // Adiciona reticências se o salto for maior que 1 página
-            if (prevPage > 0 && pageNum > prevPage + 1) {
-                buttons += `<span class="pagination-ellipsis">...</span>`;
-            }
-            
-            const activeClass = pageNum === this.currentPage ? 'primary' : 'secondary';
-            buttons += `<button class="btn btn-sm ${activeClass}" onclick="window.${instanceName}.goToPage(${pageNum})">${pageNum}</button>`;
-            
-            prevPage = pageNum;
-        }
-
-
-        // 3. Botão PRÓXIMO
-        if (this.currentPage < totalPages) {
-            buttons += `<button class="btn btn-sm" onclick="window.${instanceName}.goToPage(${this.currentPage + 1})">Próximo →</button>`;
-        }
-
-        paginationContainer.innerHTML = `<div class="pagination">${buttons}</div>`;
-    }
     renderTable(data) {
         const tbody = document.getElementById('tbodyChamados');
         if (!tbody) return;
 
         tbody.innerHTML = data.map(chamado => {
-            const nomeCompleto = `${chamado.nome_User || ''} ${chamado.sobrenome_User || ''}`.trim();
+            const isAuthor = Number(this.usuarioLogadoId) === Number(chamado.clienteId_Cham);
 
-            // Passar o ID do cliente que abriu o chamado
-            const actionButton = this.getActionButton(
-                chamado.id_Cham,
-                chamado.status_Cham,
-                chamado.clienteId_Cham
-            );
+            let vinculoHtml = '';
+            if (isAuthor) {
+                vinculoHtml = '<span class="badge" style="background:#e2e8f0; color:#475569;">👤 Criado por mim</span>';
+            } else {
+                vinculoHtml = '<span class="badge" style="background:#dbeafe; color:#1e40af;">🛠️ Atribuído a mim</span>';
+            }
 
+            const actionButton = this.getActionButton(chamado.id_Cham, chamado.status_Cham, chamado.clienteId_Cham);
+
+            // 🚨 CÉLULA DE DESCRIÇÃO LIMPA
             return `
                  <tr>
                     <td>${chamado.id_Cham}</td>
-                   
-                    <td>${renderDescricaoCurta(chamado.descricao_Cham, chamado.id_Cham)}</td>                     <td>${renderBadge(chamado.status_Cham)}</td>
-                     <td>${getPrioridadeTexto(chamado.prioridade_Cham)}</td>
-                     <td>${chamado.categoria_Cham}</td>
-                     <td>${new Date(chamado.dataAbertura_Cham).toLocaleDateString()}</td>
-                     <td>
-                        ${actionButton}
-                     </td>
+       
+       <td class="col-descricao"
+           onclick="window.meusChamadosView.verDescricaoCompleta(${chamado.id_Cham})"
+           title="Clique para ver a descrição completa"
+           style="cursor: pointer; color: #2d3436;" 
+       >
+           ${renderDescricaoCurta(chamado.descricao_Cham, chamado.id_Cham)}
+       </td>
+
+                    <td>${renderBadge(chamado.status_Cham)}</td>
+                    <td>${getPrioridadeTexto(chamado.prioridade_Cham)}</td>
+                    <td>${chamado.categoria_Cham}</td>
+                    <td>${new Date(chamado.dataAbertura_Cham).toLocaleDateString()}</td>
+                    <td>${vinculoHtml}</td> 
+                    <td>${actionButton}</td>
                  </tr>
              `;
         }).join('');
-
-        if (data.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;">Nenhum chamado encontrado com os filtros atuais.</td></tr>';
-        }
     }
 }
 

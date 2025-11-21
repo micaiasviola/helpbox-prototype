@@ -27,6 +27,9 @@ class ChamadoManager extends BaseListView {
         
         this.usuarioLogadoId = store.usuarioLogado?.id || null;
         this.nivelAcesso = store.usuarioLogado?.nivel_acesso || 0;
+
+        // 🚨 IMPORTANTE: Garante acesso global para o onclick da tabela
+        window.chamadoManager = this;
     }
 
     async init() {
@@ -57,7 +60,7 @@ class ChamadoManager extends BaseListView {
                     <option>Em andamento</option>
                     <option>Fechado</option>
                 </select>
-                <input id="busca" class="input" placeholder="Buscar por descrição..." style="max-width:320px"/>
+                <input id="busca" class="input" autocomplete="off" placeholder="Buscar por descrição..." style="max-width:320px"/>
                 <button id="refreshChamados" class="btn">🔄 Atualizar</button>
             </div>
 
@@ -67,13 +70,12 @@ class ChamadoManager extends BaseListView {
                 <table class="table">
                     <thead>
                         <tr>
-                            <th>ID Chamado</th>
+                            <th>ID</th>
                             <th>Responsável</th>
-                            <th>Descrição</th>
-                            <th>Status</th>
+                            <th class="col-descricao">Descrição</th> <th>Status</th>
                             <th>Prioridade</th>
                             <th>Categoria</th>
-                            <th>Data Abertura</th>
+                            <th>Data</th>
                             <th>Ações</th>
                         </tr>
                     </thead>
@@ -81,7 +83,49 @@ class ChamadoManager extends BaseListView {
                 </table>
             </div>
             <div id="paginationContainer" style="margin-top: 15px; text-align: center;"></div>
+
+            <dialog id="descModalSolucao" style="
+                position: fixed;
+                inset: 0;
+                margin: auto;
+                border: none; 
+                border-radius: 8px; 
+                padding: 20px; 
+                max-width: 600px; 
+                width: 90%; 
+                box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+                z-index: 10000;
+            ">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+                    <h3 style="margin:0; color:#333;">Descrição Detalhada</h3>
+                    <button onclick="document.getElementById('descModalSolucao').close()" style="background:none; border:none; font-size:20px; cursor:pointer;">&times;</button>
+                </div>
+                
+                <div id="descModalSolucaoContent" style="
+                    line-height: 1.6; 
+                    color: #555; 
+                    max-height: 60vh; 
+                    overflow-y: auto; 
+                    white-space: pre-wrap;
+                    padding-right: 5px;
+                "></div>
+                
+                <div style="text-align:right; margin-top:20px;">
+                    <button class="btn btn-secondary" onclick="document.getElementById('descModalSolucao').close()">Fechar</button>
+                </div>
+            </dialog>
         `;
+    }
+
+    
+    verDescricaoCompleta(id) {
+        const chamado = this.chamadosData.find(c => c.id_Cham === id);
+        if (chamado) {
+            const modal = document.getElementById('descModalSolucao');
+            const content = document.getElementById('descModalSolucaoContent');
+            content.innerText = chamado.descricao_Cham;
+            modal.showModal();
+        }
     }
 
     renderChamadosTable(chamados) {
@@ -99,8 +143,6 @@ class ChamadoManager extends BaseListView {
                 ? `${c.tecNome} ${c.tecSobrenome}` 
                 : (c.tecResponsavel_Cham ? `ID: ${c.tecResponsavel_Cham}` : 'Sem técnico');
             
-            // 🚨 CORREÇÃO AQUI:
-            // Adicionamos (c.descricao_Cham || '') para garantir que nunca seja null
             const descricaoSegura = c.descricao_Cham || ''; 
 
             return `
@@ -108,7 +150,13 @@ class ChamadoManager extends BaseListView {
                     <td>${c.id_Cham}</td>
                     <td>${nomeTecnico}</td>
                     
-                    <td>${renderDescricaoCurta(descricaoSegura, c.id_Cham)}</td>
+                    <td class="col-descricao"
+                        onclick="window.chamadoManager.verDescricaoCompleta(${c.id_Cham})"
+                        title="Clique para ver a descrição completa"
+                        style="cursor: pointer; color: #2d3436;"
+                    >
+                        ${renderDescricaoCurta(descricaoSegura, c.id_Cham)}
+                    </td>
                     
                     <td>${renderBadge(c.status_Cham)}</td>
                     <td>${getPrioridadeTexto(c.prioridade_Cham)}</td>
@@ -139,22 +187,19 @@ class ChamadoManager extends BaseListView {
 
         // 2. Em Andamento
         if (c.status_Cham === STATUS_EM_ANDAMENTO) {
-            // É meu -> Continuar
             if (tecId === meuId) {
                 return `<button class="btn btn-third" data-action="continue" data-id="${c.id_Cham}">Continuar Solucionando</button>`;
             } 
-            // Livre -> Pegar (exceto se for autor)
             if (!c.tecResponsavel_Cham) {
                 if (clienteId === meuId) {
                     return `<button class="btn btn-secondary" data-action="view" data-id="${c.id_Cham}">👁️ Você é o Autor</button>`;
                 }
                 return `<button class="btn btn-primary" data-action="take" data-id="${c.id_Cham}">🛠️ Solucionar Chamado</button>`;
             }
-            // De outro -> Visualizar
             return `<button class="btn btn-secondary" data-action="view" data-id="${c.id_Cham}">👁️ Atribuído</button>`;
         }
         
-        // 3. Aberto -> Visualizar
+        // 3. Aberto
         if (c.status_Cham === 'Aberto') {
             return `<button class="btn btn-fourth" data-action="view" data-id="${c.id_Cham}">👁️ Aguardando IA/Cliente</button>`;
         }
@@ -196,7 +241,6 @@ class ChamadoManager extends BaseListView {
 
     sortChamados(chamados) {
         const copy = [...chamados];
-        // Pegamos o ID do store diretamente aqui para garantir que não seja null
         const MEU_ID = Number(store.usuarioLogado?.id); 
         
         return copy.sort((a, b) => {
@@ -230,13 +274,11 @@ class ChamadoManager extends BaseListView {
         if (!action || !id) return; 
 
         try {
-            // Ações de Navegação (View ou Continue)
             if (action === 'view' || action === 'continue') {
-                iniciarSolucao(id); // Não passamos mais parâmetros, a view se resolve sozinha
+                iniciarSolucao(id); 
                 return; 
             }
 
-            // Ação de Pegar (Take)
             if (action === 'take') {
                 await apiUpdateChamado(id, {
                     status_Cham: STATUS_EM_ANDAMENTO, 
@@ -246,7 +288,6 @@ class ChamadoManager extends BaseListView {
                 return; 
             }
             
-            // Ação de Excluir
             if (action === 'delete') {
                 if (this.nivelAcesso !== NIVEL_ADMIN) return alert('Acesso negado.');
                 if (!confirm(`Excluir chamado ${id}?`)) return; 
