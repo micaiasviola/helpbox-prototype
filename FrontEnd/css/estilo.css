@@ -30,8 +30,8 @@ html, body {
 =============================== */
 .app {
   display: flex;
-  min-height: 100vh;
-  overflow: hidden;
+  height: 100vh; /* Garante altura total */
+  overflow: hidden; /* Impede scroll na página inteira (apenas dentro das áreas) */
 }
 
 /* ===============================
@@ -43,19 +43,27 @@ html, body {
   color: #fff;
   display: flex;
   flex-direction: column;
-  transition: width var(--transition);
-  position: relative;
-  z-index: 10;
+  flex-shrink: 0; /* Impede a sidebar de encolher */
+  transition: transform 0.3s ease;
+  z-index: 100;
 }
 
-.sidebar.compact {
-  width: 72px;
+.sidebar-toggle {
+  display: none; /* 🚨 ADICIONE ISSO: Esconde o botão por padrão no Desktop */
+  
+  /* Mantenha o resto como estava */
+  background: none;
+  border: none;
+  color: #fff;
+  cursor: pointer;
+  font-size: 22px;
+  transition: transform var(--transition);
 }
 
 .brand {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: center;
   padding: 16px 20px;
   border-bottom: 1px solid var(--color-sidebar-hover);
 }
@@ -81,18 +89,6 @@ html, body {
   opacity: 0.7;
 }
 
-.sidebar-toggle {
-  background: none;
-  border: none;
-  color: #fff;
-  cursor: pointer;
-  font-size: 22px;
-  transition: transform var(--transition);
-}
-
-.sidebar-toggle:hover {
-  transform: rotate(90deg);
-}
 
 /* ===============================
    MENU
@@ -137,10 +133,13 @@ html, body {
    MAIN / TOPBAR
 =============================== */
 .main {
-  flex: 1;
+  flex: 1; /* Ocupa o resto do espaço */
   display: flex;
   flex-direction: column;
   background: var(--color-bg);
+  overflow: hidden; /* Segura o scroll interno */
+  position: relative;
+  width: 100%; /* Garante largura total disponível */
 }
 
 .topbar {
@@ -203,7 +202,8 @@ html, body {
 .view {
   flex: 1;
   padding: 20px;
-  overflow-y: auto;
+  overflow-y: auto; /* Scroll vertical na área de conteúdo */
+  overflow-x: hidden;
 }
 
 /* --- Estilos para o Dropdown do Usuário --- */
@@ -384,17 +384,19 @@ html, body {
 /* Container Responsivo para a Tabela */
 .table-responsive {
   width: 100%;
-  overflow-x: auto; /* Cria barra de rolagem horizontal se necessário */
-  -webkit-overflow-scrolling: touch; /* Suavidade no mobile */
-  margin-top: 10px;
+  overflow-x: auto; /* Barra de rolagem horizontal AUTOMÁTICA */
+  -webkit-overflow-scrolling: touch;
+  border: 1px solid #eee;
   border-radius: var(--radius);
-  border: 1px solid #eee; /* Borda ao redor da tabela toda */
+  background: #fff; /* Garante fundo branco no scroll */
+  margin-bottom: 15px;
 }
 
+/* Garante que a tabela mantenha o tamanho mínimo para ser legível */
 .table {
   width: 100%;
+  min-width: 800px; /* Força a tabela a ter largura mínima, ativando o scroll */
   border-collapse: collapse;
-  white-space: nowrap; /* Evita que datas e status quebrem linha */
 }
 
 .table th,
@@ -588,50 +590,112 @@ html, body {
    RESPONSIVIDADE
 =============================== */
 @media (max-width: 1024px) {
-  .sidebar {
-    position: fixed;
-    height: 100vh;
-    left: -260px;
-    top: 0;
-    transition: left var(--transition);
-  }
-
-  .sidebar.open {
-    left: 0;
-  }
-
-  .main {
-    flex: 1;
-    margin-left: 0;
-  }
-
-  .topbar {
-    padding: 10px 16px;
-    align-items: end;
-  }
-}
-
-@media (max-width: 640px) {
-  .topbar {
+  
+  /* 1. Layout em Coluna */
+  .app {
     flex-direction: column;
-    align-items: stretch;
-    gap: 10px;
+    height: 100vh;
+    overflow-x: hidden;
   }
 
-  .search input {
-    max-width: 100%;
+  /* 2. Sidebar vira o Cabeçalho Azul no Topo */
+  .sidebar {
+    width: 100%;
+    height: auto; /* Cresce conforme o menu abre */
+    position: relative;
+    z-index: 1000; /* Fica acima de tudo */
+    padding: 0;
+    flex-shrink: 0;
   }
 
-  .menu-item span:not(.icon),
-  .brand-text {
+  /* 3. Área da Marca (Logo + Botão) */
+  .brand {
+    width: 100%;
+    display: flex;
+    justify-content: space-between; /* Logo na esq, Botão na dir */
+    align-items: center;
+    padding: 10px 20px;
+    border-bottom: none;
+    background-color: var(--color-sidebar);
+  }
+
+  /* Garante que o botão Hambúrguer apareça e seja clicável */
+  .sidebar-toggle {
+    display: block !important; /* Força visibilidade */
+    font-size: 32px; /* Tamanho bom para dedo */
+    color: #fff;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    padding: 5px;
+    line-height: 1;
+  }
+
+  /* 4. Menu (Links) - Escondido por padrão */
+  .menu {
+    display: none; 
+    width: 100%;
+    background-color: var(--color-sidebar);
+    border-top: 1px solid rgba(255,255,255,0.1);
+    padding-bottom: 10px;
+  }
+
+  /* 5. Menu Aberto (via JS .open) */
+  .sidebar.open .menu {
+    display: flex;
+    flex-direction: column;
+    animation: slideDown 0.3s ease;
+  }
+
+  /* Oculta rodapé da sidebar no mobile para economizar espaço */
+  .sidebar-footer {
     display: none;
   }
 
-  .sidebar {
-    width: 72px;
+  /* 6. Conteúdo Principal */
+  .main {
+    width: 100%;
+    flex: 1; /* Ocupa o resto da altura */
+    margin: 0;
+    border-radius: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden; /* Controla o scroll interno */
   }
 
-  .view {
-    padding: 12px;
+  /* 7. Topbar (Barra Branca) - Fica abaixo da Sidebar */
+  .topbar {
+    padding: 10px 15px;
+    height: auto;
+    gap: 10px;
+    flex-wrap: wrap; /* Permite que itens quebrem linha se necessário */
   }
+
+  /* Ajuste da Busca */
+  .search {
+    flex-grow: 1; /* Busca ocupa espaço disponível */
+    min-width: 200px; 
+  }
+  .search input {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  /* Ajuste do Usuário */
+  .top-actions {
+    gap: 15px;
+  }
+  
+  /* Ajuste da Tabela/View */
+  .view {
+    padding: 10px;
+    overflow-y: auto; /* Scroll vertical aqui */
+    flex: 1; /* Ocupa o espaço restante */
+  }
+}
+
+/* Animação suave */
+@keyframes slideDown {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
 }

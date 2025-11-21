@@ -350,28 +350,57 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Inicia o fluxo principal de autenticação e renderização
     iniciarAplicacao();
+    const userTrigger = document.getElementById('userMenuTrigger');
+    const userDropdown = document.getElementById('userDropdownMenu');
 
-    // Configura listeners de UI
-    document.getElementById('sidebarToggle').addEventListener('click', () => {
-        document.querySelector('.app').classList.toggle('compact');
-    });
-
-    // Listener para o menu dropdown do usuário
-    const userMenuTrigger = document.getElementById('userMenuTrigger');
-    const userDropdownMenu = document.getElementById('userDropdownMenu');
-
-    if (userMenuTrigger && userDropdownMenu) {
-        // Abre/Fecha o menu ao clicar no gatilho
-        userMenuTrigger.addEventListener('click', (event) => {
-            event.stopPropagation(); // Impede que o 'window.click' feche imediatamente
-            userDropdownMenu.classList.toggle('show');
+    if (userTrigger && userDropdown) {
+        // 1. Ao clicar na foto/nome, alterna o menu
+        userTrigger.addEventListener('click', (e) => {
+            e.stopPropagation(); // Evita que o clique feche o menu imediatamente
+            userDropdown.classList.toggle('show');
         });
 
-        // Fecha o menu se o usuário clicar em qualquer outro lugar
-        window.addEventListener('click', () => {
-            if (userDropdownMenu.classList.contains('show')) {
-                userDropdownMenu.classList.remove('show');
+        // 2. Fecha o menu se clicar fora dele (em qualquer lugar da tela)
+        document.addEventListener('click', (e) => {
+            if (!userTrigger.contains(e.target)) {
+                userDropdown.classList.remove('show');
             }
+        });
+    }
+    // =================================================================
+    // LÓGICA DO MENU MOBILE (RESPONSIVO)
+    // =================================================================
+    const sidebar = document.getElementById('sidebar');
+    const toggleBtn = document.getElementById('sidebarToggle');
+    const menuLinks = document.querySelectorAll('.menu-item');
+
+    if (toggleBtn && sidebar) {
+        // 1. Clique no Botão Hambúrguer
+        toggleBtn.addEventListener('click', (e) => {
+            e.stopPropagation(); // Evita propagação indesejada
+            sidebar.classList.toggle('open'); // Adiciona/Remove classe CSS
+            
+            // Troca o ícone visualmente (Opcional)
+            const isOpen = sidebar.classList.contains('open');
+            toggleBtn.innerHTML = isOpen ? '✕' : '≡';
+        });
+
+        // 2. Fechar menu ao clicar fora (clique no .main)
+        document.querySelector('.main').addEventListener('click', () => {
+            if (window.innerWidth <= 1024 && sidebar.classList.contains('open')) {
+                sidebar.classList.remove('open');
+                toggleBtn.innerHTML = '≡';
+            }
+        });
+
+        // 3. Fechar menu ao clicar em um link (Melhora UX)
+        menuLinks.forEach(link => {
+            link.addEventListener('click', () => {
+                if (window.innerWidth <= 1024) {
+                    sidebar.classList.remove('open');
+                    toggleBtn.innerHTML = '≡';
+                }
+            });
         });
     }
 
