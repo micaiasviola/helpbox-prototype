@@ -60,7 +60,18 @@ export async function apiUpdateUsuario(id, dados) {
         if (response.ok) {
             return await response.json();
         }
-        throw new Error('Erro ao atualizar usuário');
+
+        // 🚨 MELHORIA: Ler a mensagem de erro real do backend
+        let errorData;
+        try {
+            errorData = await response.json();
+        } catch (e) {
+            errorData = { error: response.statusText };
+        }
+
+        // Lança o erro com a mensagem específica (ex: "Nome é obrigatório")
+        throw new Error(errorData.error || 'Erro desconhecido ao atualizar usuário');
+
     } catch (error) {
         console.error('Erro API:', error);
         throw error;

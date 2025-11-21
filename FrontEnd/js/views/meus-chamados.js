@@ -1,11 +1,12 @@
 import { apiGetMeusChamados } from '../api/chamados.js';
 import { store } from '../store.js';
-import { renderBadge, getPrioridadeTexto, renderDescricaoCurta } from '../utils/helpers.js';
+import { renderBadge, getPrioridadeTexto, renderDescricaoCurta, formatDate } from '../utils/helpers.js';
 import { iniciarSolucao } from './solucionar-chamado-detalhe.js';
 
 // Constantes de Nível de Acesso e Paginação
 const NIVEL_TECNICO = 2;
 const DEFAULT_PAGE_SIZE = 5;
+const STATUS_EM_ANDAMENTO = 'Em andamento';
 
 /**
  * Classe responsável por exibir, filtrar e buscar os chamados de um cliente específico.
@@ -13,19 +14,19 @@ const DEFAULT_PAGE_SIZE = 5;
 class MeusChamadosView {
     constructor(containerId = 'view') {
         this.container = document.getElementById(containerId);
-        this.chamados = [];
-
+        this.chamados = []; 
+        
         // Filtros
         this.filtroStatus = '';
         this.filtroTipo = '';
         this.termoBusca = '';
-
+        
         this.currentPage = 1;
         this.totalCount = 0;
         this.pageSize = DEFAULT_PAGE_SIZE;
         this.usuarioLogadoId = store.usuarioLogado?.id || null;
         this.nivelAcesso = store.usuarioLogado?.nivel_acesso || 0;
-
+        
         // Garante a instância global para os onclicks
         window.meusChamadosView = this;
     }
@@ -56,7 +57,7 @@ class MeusChamadosView {
                     <option ${this.filtroStatus === 'Fechado' ? 'selected' : ''}>Fechado</option>
                 </select>
                 
-                <input id="busca" class="input" autocomplete="off" placeholder="Buscar por descrição..." value="${this.termoBusca}" style="max-width:300px"/>
+                <input id="busca" class="input" autocomplete="off" placeholder="Buscar por ID ou descrição..." value="${this.termoBusca}" style="max-width:300px"/>
                 
                 <button id="refreshChamados" class="btn">🔄 Atualizar</button>
             </div>
@@ -83,31 +84,14 @@ class MeusChamadosView {
             <div id="paginationContainer" class="pagination-container"></div>
 
             <dialog id="descModal" style="
-                position: fixed;
-                inset: 0;
-                margin: auto;
-                border: none; 
-                border-radius: 8px; 
-                padding: 20px; 
-                max-width: 600px; 
-                width: 90%; 
-                box-shadow: 0 10px 25px rgba(0,0,0,0.3);
-                z-index: 10000;
+                position: fixed; inset: 0; margin: auto; border: none; border-radius: 8px; 
+                padding: 20px; max-width: 600px; width: 90%; box-shadow: 0 10px 25px rgba(0,0,0,0.3); z-index: 10000;
             ">
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
                     <h3 style="margin:0; color:#333;">Descrição do Chamado</h3>
                     <button onclick="document.getElementById('descModal').close()" style="background:none; border:none; font-size:20px; cursor:pointer;">&times;</button>
                 </div>
-                
-                <div id="descModalContent" style="
-                    line-height: 1.6; 
-                    color: #555; 
-                    max-height: 60vh; 
-                    overflow-y: auto; 
-                    white-space: pre-wrap;
-                    padding-right: 5px;
-                "></div>
-                
+                <div id="descModalContent" style="line-height: 1.6; color: #555; max-height: 60vh; overflow-y: auto; white-space: pre-wrap; padding-right: 5px;"></div>
                 <div style="text-align:right; margin-top:20px;">
                     <button class="btn btn-secondary" onclick="document.getElementById('descModal').close()">Fechar</button>
                 </div>
@@ -115,16 +99,13 @@ class MeusChamadosView {
         `;
     }
 
-    /**
-     * Busca o texto completo e abre o modal
-     */
     verDescricaoCompleta(id) {
         const chamado = this.chamados.find(c => c.id_Cham === id);
         if (chamado) {
             const modal = document.getElementById('descModal');
             const content = document.getElementById('descModalContent');
             content.innerText = chamado.descricao_Cham;
-            modal.showModal();
+            modal.showModal(); 
         }
     }
 
@@ -147,14 +128,12 @@ class MeusChamadosView {
                 this.triggerLoad(true);
             });
         }
-
         if (filtroTipoEl) {
             filtroTipoEl.addEventListener('change', (e) => {
                 this.filtroTipo = e.target.value;
                 this.triggerLoad(true);
             });
         }
-
         if (buscaEl) {
             let debounceTimeout;
             buscaEl.addEventListener('input', (e) => {
@@ -165,7 +144,6 @@ class MeusChamadosView {
                 }, 300);
             });
         }
-
         if (refreshEl) {
             refreshEl.addEventListener('click', () => {
                 this.triggerLoad(true);
@@ -193,13 +171,16 @@ class MeusChamadosView {
                 this.pageSize,
                 this.termoBusca,
                 this.filtroStatus,
-                this.filtroTipo
+                this.filtroTipo 
             );
 
             this.chamados = response.chamados;
             this.totalCount = response.totalCount;
 
-            this.renderTable(this.chamados);
+            // 🚨 ORDENAÇÃO VISUAL AQUI
+            const chamadosOrdenados = this.sortChamados(this.chamados);
+
+            this.renderTable(chamadosOrdenados);
             this.renderPagination();
 
             if (this.chamados.length === 0 && tbody) {
@@ -211,6 +192,55 @@ class MeusChamadosView {
         } finally {
             if (loadingDiv) loadingDiv.style.display = 'none';
         }
+    }
+
+    // 🚨 NOVA FUNÇÃO DE ORDENAÇÃO (IGUAL À SOLUCIONAR CHAMADOS)
+    sortChamados(chamados) {
+        const copy = [...chamados];
+        const MEU_ID = Number(this.usuarioLogadoId); 
+        const STATUS_EM_ANDAMENTO = 'Em andamento';
+
+        return copy.sort((a, b) => {
+            const tecIdA = Number(a.tecResponsavel_Cham);
+            const tecIdB = Number(b.tecResponsavel_Cham);
+            const statusA = a.status_Cham;
+            const statusB = b.status_Cham;
+
+            // 1. Define o Grupo (Peso) - Igual ao Solucionar Chamados
+            const getWeight = (status, tecId) => {
+                // Grupo 0: Meus em Andamento (Ação: Continuar/Resolver)
+                if (status === STATUS_EM_ANDAMENTO && tecId === MEU_ID) return 0;
+
+                // Grupo 1: Livres em Andamento (Ação: Assumir - Raro aqui, mas possível)
+                if (status === STATUS_EM_ANDAMENTO && !tecId) return 1;
+
+                // Grupo 2: De Outros em Andamento (Ação: Visualizar/Ver Solução)
+                if (status === STATUS_EM_ANDAMENTO && tecId !== MEU_ID) return 2;
+                
+                // Grupo 3: Abertos (Ação: Ver Solução/Detalhes)
+                if (status === 'Aberto') return 3;
+                
+                // Grupo 4: Fechados (Ação: Ver Solução)
+                if (status === 'Fechado') return 4;
+                
+                return 9;
+            };
+
+            const weightA = getWeight(statusA, tecIdA);
+            const weightB = getWeight(statusB, tecIdB);
+
+            // 2. Ordena pelo Grupo
+            if (weightA !== weightB) {
+                return weightA - weightB;
+            }
+
+            // 3. Desempate por DATA (Mais recente primeiro)
+            // Removemos a prioridade (Alta/Media) para focar na cronologia
+            const dateA = new Date(a.dataAbertura_Cham);
+            const dateB = new Date(b.dataAbertura_Cham);
+            
+            return dateB - dateA; 
+        });
     }
 
     getActionButton(chamadoId, status, clienteId_Cham) {
@@ -243,22 +273,22 @@ class MeusChamadosView {
         }
 
         let buttons = '';
-
+        
         if (this.currentPage > 1) {
-            buttons += `<button class="btn btn-sm" onclick="window.${instanceName}.goToPage(${this.currentPage - 1})">←</button>`;
+            buttons += `<button class="btn btn-sm" onclick="window.${instanceName}.goToPage(${this.currentPage - 1})">← Anterior</button>`;
         }
 
         for (let i = 1; i <= totalPages; i++) {
-            if (i === 1 || i === totalPages || (i >= this.currentPage - 1 && i <= this.currentPage + 1)) {
+             if (i === 1 || i === totalPages || (i >= this.currentPage - 1 && i <= this.currentPage + 1)) {
                 const activeClass = i === this.currentPage ? 'primary' : 'secondary';
                 buttons += `<button class="btn btn-sm ${activeClass}" onclick="window.${instanceName}.goToPage(${i})">${i}</button>`;
-            } else if (i === this.currentPage - 2 || i === this.currentPage + 2) {
-                buttons += `<span class="pagination-ellipsis">...</span>`;
-            }
+             } else if (i === this.currentPage - 2 || i === this.currentPage + 2) {
+                 buttons += `<span class="pagination-ellipsis">...</span>`;
+             }
         }
 
         if (this.currentPage < totalPages) {
-            buttons += `<button class="btn btn-sm" onclick="window.${instanceName}.goToPage(${this.currentPage + 1})">→</button>`;
+            buttons += `<button class="btn btn-sm" onclick="window.${instanceName}.goToPage(${this.currentPage + 1})">Próximo →</button>`;
         }
 
         paginationContainer.innerHTML = `<div class="pagination" style="display:flex; gap:5px; justify-content:center; margin-top:15px;">${buttons}</div>`;
@@ -270,7 +300,7 @@ class MeusChamadosView {
 
         tbody.innerHTML = data.map(chamado => {
             const isAuthor = Number(this.usuarioLogadoId) === Number(chamado.clienteId_Cham);
-
+            
             let vinculoHtml = '';
             if (isAuthor) {
                 vinculoHtml = '<span class="badge" style="background:#e2e8f0; color:#475569;">👤 Criado por mim</span>';
@@ -280,23 +310,22 @@ class MeusChamadosView {
 
             const actionButton = this.getActionButton(chamado.id_Cham, chamado.status_Cham, chamado.clienteId_Cham);
 
-            // 🚨 CÉLULA DE DESCRIÇÃO LIMPA
             return `
                  <tr>
                     <td>${chamado.id_Cham}</td>
-       
-       <td class="col-descricao"
-           onclick="window.meusChamadosView.verDescricaoCompleta(${chamado.id_Cham})"
-           title="Clique para ver a descrição completa"
-           style="cursor: pointer; color: #2d3436;" 
-       >
-           ${renderDescricaoCurta(chamado.descricao_Cham, chamado.id_Cham)}
-       </td>
+                    
+                    <td class="col-descricao"
+                        onclick="window.meusChamadosView.verDescricaoCompleta(${chamado.id_Cham})"
+                        title="Clique para ver a descrição completa"
+                        style="cursor: pointer; color: #2d3436;"
+                    >
+                        ${renderDescricaoCurta(chamado.descricao_Cham, chamado.id_Cham)}
+                    </td>
 
                     <td>${renderBadge(chamado.status_Cham)}</td>
                     <td>${getPrioridadeTexto(chamado.prioridade_Cham)}</td>
                     <td>${chamado.categoria_Cham}</td>
-                    <td>${new Date(chamado.dataAbertura_Cham).toLocaleDateString()}</td>
+                    <td>${formatDate(chamado.dataAbertura_Cham)}</td>
                     <td>${vinculoHtml}</td> 
                     <td>${actionButton}</td>
                  </tr>

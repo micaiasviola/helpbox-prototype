@@ -61,26 +61,31 @@ export async function apiCreateChamado(dados) {
             body: JSON.stringify(dados)
         });
 
+        // Se deu certo (200/201)
         if (response.ok) {
             return await response.json();
         }
 
-        // --- INÍCIO DO TRATAMENTO ROBUSTO DE ERRO ---
-        // Tenta ler o corpo JSON da resposta de erro (onde o backend envia a mensagem)
-        let errorData;
-        try {
-            errorData = await response.json();
-        } catch (e) {
-            // Se falhar ao ler JSON, assume que a resposta é texto simples ou vazia.
-            errorData = { error: `Erro HTTP ${response.status}: ${response.statusText}` };
+        // --- TRATAMENTO DE ERRO ROBUSTO ---
+        let errorMessage = 'Erro desconhecido no servidor.';
+        
+        // 1. Tenta ler o corpo da resposta como texto primeiro
+        const textData = await response.text();
+        
+        if (textData) {
+            try {
+                // 2. Tenta converter para JSON
+                const jsonData = JSON.parse(textData);
+                errorMessage = jsonData.error || jsonData.message || JSON.stringify(jsonData);
+            } catch (e) {
+                // 3. Se não for JSON, usa o texto puro (ex: erro de HTML ou texto do SQL)
+                errorMessage = textData; 
+            }
+        } else {
+            errorMessage = `Erro HTTP ${response.status}: ${response.statusText}`;
         }
 
-        // Lança um novo erro com a mensagem do backend.
-        // Se o backend enviou { error: "mensagem" }, usamos essa mensagem.
-        const errorMessage = errorData.error || 'Ocorreu um erro desconhecido no servidor.';
-
         throw new Error(errorMessage);
-        // --- FIM DO TRATAMENTO ROBUSTO DE ERRO ---
 
     } catch (error) {
         console.error('Erro API:', error);
@@ -132,13 +137,21 @@ export async function apiGetMeusChamados(page = 1, pageSize = 5, q = '', status 
 
 export async function apiGetChamadosTecnico(page = 1, pageSize = 5, q = '', status = '') { 
     try {
+        // Monta a URL base
         let url = `${API_BASE}/chamados/tecnico?page=${page}&pageSize=${pageSize}`;
-        // Não passamos q/status no backend /tecnico, mas deixamos a função flexível
+        
+        // 🚨 CORREÇÃO: Agora adicionamos os parâmetros na URL
+        if (q) {
+            url += `&q=${encodeURIComponent(q)}`;
+        }
+        
+        if (status) {
+            url += `&status=${encodeURIComponent(status)}`;
+        }
         
         const response = await fetch(url, { credentials: 'include' });
         
         if (response.ok) {
-             // Retorna o objeto paginado { chamados: [...], totalCount: N }
             return await response.json(); 
         }
         throw new Error('Erro ao buscar chamados da fila técnica.');

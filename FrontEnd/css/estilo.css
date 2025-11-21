@@ -590,6 +590,10 @@ html, body {
    RESPONSIVIDADE
 =============================== */
 @media (max-width: 1024px) {
+
+  #logoutBtn2 {
+    display: none;
+}
   
   /* 1. Layout em Coluna */
   .app {
@@ -699,3 +703,4 @@ html, body {
     from { opacity: 0; transform: translateY(-10px); }
     to { opacity: 1; transform: translateY(0); }
 }
+

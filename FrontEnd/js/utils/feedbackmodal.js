@@ -2,8 +2,7 @@
 
 export function showConfirmationModal(title, message) {
     
-    // CORREÇÃO: Adicionado 'margin: auto' e 'inset: 0' para garantir centralização absoluta
-    // Também adicionei 'position: fixed' para reforçar, embora o showModal() já faça isso.
+
     const modalHTML = `
         <dialog id="confirm-dialog" style="margin: auto; inset: 0; border: none; border-radius: 8px; padding: 0; box-shadow: 0 10px 25px rgba(0,0,0,0.5); min-width: 300px; background: transparent;">
             <div class="card" style="padding: 20px; background-color: white; border-radius: 8px;">

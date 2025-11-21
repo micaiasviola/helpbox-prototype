@@ -40,8 +40,9 @@ async function gerarRespostaIA(categoria, descricao, titulo, frequencia, impacto
         🔴 REGRAS OBRIGATÓRIAS DE FORMATAÇÃO (LEIA COM ATENÇÃO):
         
         1. Sua resposta deve conter APENAS: A Letra, o Pipe (|) e a Solução.
-        2. PROIBIDO escrever "Cálculo de Prioridade", "Soma total" ou "Pontos".
-        3. PROIBIDO explicar por que você escolheu a prioridade.
+        2. Sua resposta deve conter no MÁXIMO 1999 caracteres.
+        3. PROIBIDO escrever "Cálculo de Prioridade", "Soma total" ou "Pontos".
+        4. PROIBIDO explicar por que você escolheu a prioridade.
         
         EXEMPLO DO QUE EU QUERO (Faça assim):
         M|**Olá!** Para resolver esse problema de lentidão, sugiro limpar o cache...

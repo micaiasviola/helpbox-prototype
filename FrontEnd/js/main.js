@@ -1,418 +1,283 @@
 /*
  * =================================================================
- * HELPBOX - main.js
- * =================================================================
- * Este é o arquivo principal que controla a aplicação (SPA).
- * Ele gerencia o roteamento, autenticação e a inicialização
- * de todos os componentes da página.
+ * HELPBOX - main.js (Refatorado & Corrigido)
  * =================================================================
  */
 
-// --- Importações de Módulos ---
+// --- Importações ---
 import { YEAR, API_BASE } from './utils/constants.js';
-import { applyAccent } from './utils/helpers.js';
 import { showConfirmationModal } from './utils/feedbackmodal.js';
 import { store } from './store.js';
 
-// Importações das "Views" (Páginas)
+// Views
 import { renderDashboard } from './views/dashboard.js';
 import { renderAbrirChamado } from './views/abrir-chamado.js';
 import { renderTodosChamados } from './views/solucionar-chamados.js';
 import { renderMeusChamados } from './views/meus-chamados.js';
 import { renderUsuarios } from './views/usuarios.js';
-import { renderConfig } from './views/config.js';
+// import { renderConfig } from './views/config.js'; // REMOVIDO
 import { iniciarDetalhesIA } from './views/detalhes-IA.js';
 import { iniciarSolucao } from './views/solucionar-chamado-detalhe.js';
 
-// =================================================================
-// --- Configuração Global ---
-// =================================================================
-
-// Níveis de Acesso
+// --- Níveis de Acesso ---
 const NIVEL_ADMIN = 3;
 const NIVEL_SOLUCIONADOR = 2;
 const NIVEL_COMUM = 1;
 
 /**
- * Mapeamento das rotas que exigem um nível de acesso mínimo.
- * Isso é usado pelo "Route Guard" na função navigate().
+ * ⚡ CONFIGURAÇÃO CENTRAL DE ROTAS (SSOT) ⚡
  */
-const ROTAS_RESTRITAS = {
-    todos: NIVEL_SOLUCIONADOR, // Apenas Nível 2+ pode ver "Solucionar Chamados"
-    usuarios: NIVEL_ADMIN,     // Apenas Nível 3 (Admin) pode ver "Gerenciar Usuários"
-    dashboard: NIVEL_ADMIN     // Apenas Nível 3 (Admin) pode ver "Relatórios"
-};
-
-/**
- * Mapeamento central de rotas da aplicação.
- * Associa um 'hash' (da URL) a uma função que renderiza a página.
- */
-const routes = {
-    dashboard: renderDashboard,
-    abrir: renderAbrirChamado,
-    chamados: renderMeusChamados,
-    todos: renderTodosChamados,
-    usuarios: renderUsuarios,
-    config: renderConfig,
-    solucao: iniciarSolucao, // Rota especial para ver detalhes
-    detalhesIA: iniciarDetalhesIA // Rota especial para IA
+const ROUTE_CONFIG = {
+    'dashboard': { 
+        view: renderDashboard, 
+        minLevel: NIVEL_ADMIN, 
+        menuId: 'menuDashboard' 
+    },
+    'usuarios': { 
+        view: renderUsuarios, 
+        minLevel: NIVEL_ADMIN, 
+        menuId: 'menuGerenciarUsuarios' 
+    },
+    'todos': { 
+        view: renderTodosChamados, 
+        minLevel: NIVEL_SOLUCIONADOR, 
+        menuId: 'menuSolucionarChamados' 
+    },
+    'abrir': { 
+        view: renderAbrirChamado, 
+        forbiddenLevels: [NIVEL_SOLUCIONADOR], 
+        menuSelector: '[data-route="abrir"]' 
+    },
+    'chamados': { 
+        view: renderMeusChamados,
+        menuSelector: '[data-route="chamados"]'
+    },
+    // Rotas ocultas ou especiais
+    'solucao': { view: iniciarSolucao },
+    'detalhesIA': { view: iniciarDetalhesIA }
 };
 
 // =================================================================
-// --- 1. Autenticação e Gerenciamento de Sessão ---
+// --- 1. Autenticação ---
 // =================================================================
 
-/**
- * Busca os dados do usuário logado na API (usando o cookie de sessão).
- * 'credentials: include' é crucial para enviar o cookie.
- */
 async function getUsuarioLogado() {
     try {
-        const response = await fetch(`${API_BASE}/auth/me`, {
-            credentials: 'include'
-        });
-        
-        // Se a resposta não for OK (ex: 401 Não Autorizado), o cookie é inválido ou expirou.
+        const response = await fetch(`${API_BASE}/auth/me`, { credentials: 'include' });
         return response.ok ? await response.json() : null;
-
     } catch (error) {
-        console.error('Erro de rede ao buscar dados do usuário:', error);
+        console.error('Erro auth:', error);
         return null;
     }
 }
 
-/**
- * Executa o processo de logout.
- * Mostra uma confirmação, chama a API de logout e redireciona para a tela de login.
- */
 async function fazerLogout() {
-    const confirmed = await showConfirmationModal(
-        "Confirmação de Saída",
-        "Deseja realmente sair do sistema?"
-    );
-
-    if (!confirmed) {
-        console.log("Logout cancelado pelo usuário.");
-        return;
-    }
+    const confirmed = await showConfirmationModal("Sair", "Deseja realmente sair do sistema?");
+    if (!confirmed) return;
 
     try {
-        await fetch(`${API_BASE}/auth/logout`, {
-            method: 'POST',
-            credentials: 'include'
-        });
-
-        console.log("Sessão encerrada com sucesso.");
-        store.usuarioLogado = null; // Limpa o store
-        window.location.href = '/login/tela_login.html'; // Redireciona
-
+        await fetch(`${API_BASE}/auth/logout`, { method: 'POST', credentials: 'include' });
+        store.usuarioLogado = null;
+        window.location.href = '/login/tela_login.html';
     } catch (error) {
-        console.error('Erro de rede ao fazer logout:', error);
-        alert('Erro de conexão ao tentar sair.');
+        console.error('Erro logout:', error);
+        alert('Erro ao tentar sair.');
     }
 }
 
 // =================================================================
-// --- 2. Roteamento (SPA Router) ---
+// --- 2. Roteamento Inteligente ---
 // =================================================================
 
-/**
- * Renderiza a página de "Não Encontrado" (Erro 404).
- */
 function renderNotFound() {
     document.getElementById('view').innerHTML = '<div class="card">Página não encontrada.</div>';
 }
 
-/**
- * Renderiza uma tela de "Acesso Proibido" e redireciona o usuário
- * para sua página padrão após 3 segundos.
- */
-function renderAccessDenied(hashTentado) {
+function renderAccessDenied() {
     const view = document.getElementById('view');
-    view.innerHTML = `
-        <div class="card" style="background-color:#f8d7da; color:#842029;">
-            <p><strong>Acesso Proibido!</strong></p>
-            <p>Você não tem permissão para acessar a rota **/${hashTentado}**.</p>
-        </div>
-    `;
-
-    // Lógica de redirecionamento seguro
-    const nivelDoUsuario = store.usuarioLogado?.nivel_acesso;
-    let rotaSegura = '#/abrir'; // Padrão para Comum/Admin
-
-    if (nivelDoUsuario === NIVEL_SOLUCIONADOR) {
-        rotaSegura = '#/todos'; // Padrão para Solucionador
-    }
-
+    view.innerHTML = `<div class="card error">🚫 Acesso Negado. Redirecionando...</div>`;
+    
     setTimeout(() => {
-        location.hash = rotaSegura;
-    }, 3000);
+        const usuario = store.usuarioLogado || {};
+        // Tenta pegar o nível de várias formas para evitar erro
+        const nivel = Number(usuario.nivel_acesso || usuario.nivelAcesso || 0);
+        const rotaDestino = (nivel === NIVEL_SOLUCIONADOR) ? '#/todos' : '#/abrir';
+        location.hash = rotaDestino;
+    }, 2000);
 }
 
-/**
- * Coração do roteador SPA (Single Page Application).
- * Esta função lê o hash da URL (ex: #/todos) e decide qual
- * página renderizar, aplicando as regras de permissão (Route Guard).
- */
 function navigate() {
     let fullHash = location.hash.replace('#/', '');
-    const view = document.getElementById('view');
-
-    // 1. Lógica da Rota Padrão (Se a URL estiver vazia)
-    // Se o usuário acabou de logar (URL sem hash), definimos uma página padrão.
-    if (fullHash === '') {
-        const nivelDoUsuario = store.usuarioLogado?.nivel_acesso;
-
-        // Rota padrão condicional:
-        if (nivelDoUsuario === NIVEL_SOLUCIONADOR) {
-            fullHash = 'todos'; // Solucionador vai para "Solucionar Chamados"
-        } else {
-            fullHash = 'abrir'; // Admin e Comum vão para "Abrir Chamado"
-        }
-        
-        // Atualiza a URL (isso vai disparar o 'hashchange' e recarregar esta função)
-        location.hash = `#/${fullHash}`;
-        return; 
-    }
-
-    // 2. Parse da Rota e Parâmetros
-    // Transforma 'solucao/42' em hash='solucao' e idParam='42'
-    const hashParts = fullHash.split('/');
-    const hash = hashParts[0];
-    const idParam = hashParts[1];
-
-    // 3. Guarda de Rota (Route Guard) - Verificação de Permissões
-    const usuario = store.usuarioLogado;
-    const nivelDoUsuario = usuario?.nivel_acesso;
     
-    // Regra Específica: Solucionador (Nível 2) não pode abrir chamado.
-    if (hash === 'abrir' && nivelDoUsuario === NIVEL_SOLUCIONADOR) {
-        renderAccessDenied(hash);
+    // 1. Obter nível do usuário de forma segura (Parse Int)
+    const usuario = store.usuarioLogado;
+    // Verifica nivel_acesso (padrão banco) ou nivelAcesso (padrão JS) ou 0
+    const nivelRaw = usuario?.nivel_acesso ?? usuario?.nivelAcesso ?? 0;
+    const nivelUsuario = Number(nivelRaw);
+
+    console.log(`[Router] Navegando para: ${fullHash} | Nível Usuário: ${nivelUsuario}`);
+
+    // 2. Rota Padrão (Home)
+    if (fullHash === '') {
+        const homeRoute = (nivelUsuario === NIVEL_SOLUCIONADOR) ? 'todos' : 'abrir';
+        location.hash = `#/${homeRoute}`;
         return;
     }
 
-    // Regra Geral: Verifica as permissões do objeto ROTAS_RESTRITAS
-    const nivelNecessario = ROTAS_RESTRITAS[hash];
-    if (nivelNecessario) {
-        // Se o usuário não existe ou seu nível é menor que o necessário
-        if (!nivelDoUsuario || nivelDoUsuario < nivelNecessario) {
-            renderAccessDenied(hash);
-            return;
-        }
+    const [routeKey, idParam] = fullHash.split('/');
+    const config = ROUTE_CONFIG[routeKey];
+
+    // 3. Validação de Rota Inexistente
+    if (!config) {
+        renderNotFound();
+        return;
     }
 
-    // 4. Atualização do Menu Ativo
-    // Remove a classe 'active' de todos e adiciona no item clicado.
+    // 4. Guarda de Rota (Permissões)
+    
+    // Check Nível Mínimo
+    if (config.minLevel && nivelUsuario < config.minLevel) {
+        console.warn(`[Router] Bloqueado. Requer: ${config.minLevel}, Tem: ${nivelUsuario}`);
+        renderAccessDenied();
+        return;
+    }
+
+    // Check Níveis Proibidos
+    if (config.forbiddenLevels && config.forbiddenLevels.includes(nivelUsuario)) {
+        console.warn(`[Router] Bloqueado. Nível ${nivelUsuario} é proibido aqui.`);
+        renderAccessDenied();
+        return;
+    }
+
+    // 5. UI: Atualiza Menu Ativo
     document.querySelectorAll('.menu-item').forEach(a => a.classList.remove('active'));
-    const activeMenuItem = document.querySelector(`.menu-item[href="#/${hash}"]`);
-    if (activeMenuItem) {
-        activeMenuItem.classList.add('active');
-    }
+    const activeLink = document.querySelector(`.menu-item[href="#/${routeKey}"]`);
+    if (activeLink) activeLink.classList.add('active');
 
-    // 5. Renderização da View
-    const renderFunction = routes[hash] || renderNotFound;
-    view.innerHTML = ''; // Limpa a view antiga
-
-    // Rotas de detalhe (como 'solucao' ou 'detalhesIA') precisam receber o ID.
-    if (renderFunction === iniciarSolucao || renderFunction === iniciarDetalhesIA) {
-        renderFunction(idParam);
-    } else {
-        renderFunction();
-    }
+    // 6. Renderiza View
+    document.getElementById('view').innerHTML = ''; 
+    config.view(idParam); 
 }
 
 // =================================================================
-// --- 3. Controle de Acesso (Visibilidade da UI) ---
+// --- 3. Controle de Interface (UI) ---
 // =================================================================
 
-/**
- * Esconde/mostra itens do menu lateral com base no nível de acesso do usuário.
- */
-function controlarAcessoMenu(usuarioLogado) {
-    if (!usuarioLogado) return;
+function controlarAcessoMenu(usuario) {
+    if (!usuario) return;
+    const nivel = Number(usuario.nivel_acesso || usuario.nivelAcesso || 0);
 
-    const nivelDoUsuario = usuarioLogado.nivel_acesso;
+    Object.values(ROUTE_CONFIG).forEach(config => {
+        let el = null;
+        if (config.menuId) el = document.getElementById(config.menuId);
+        else if (config.menuSelector) el = document.querySelector(config.menuSelector);
 
-    // Regra Específica: Esconde "Abrir Chamado" para Nível 2
-    const linkAbrir = document.querySelector('[href="#/abrir"]');
-    if (linkAbrir) {
-        linkAbrir.style.display = (nivelDoUsuario === NIVEL_SOLUCIONADOR) ? 'none' : '';
-    }
-
-    // Regra Geral: Itera sobre as rotas restritas e seus links
-    const linksRestritos = [
-        { route: 'todos', nivelMinimo: NIVEL_SOLUCIONADOR, id: 'menuSolucionarChamados' },
-        { route: 'usuarios', nivelMinimo: NIVEL_ADMIN, id: 'menuGerenciarUsuarios' },
-        { route: 'dashboard', nivelMinimo: NIVEL_ADMIN, id: 'menuDashboard' }
-    ];
-
-    linksRestritos.forEach(item => {
-        // Procura pelo ID ou pelo data-route
-        const linkElement = document.getElementById(item.id) || document.querySelector(`[data-route="${item.route}"]`);
-
-        if (linkElement) {
-            const ehPermitido = nivelDoUsuario >= item.nivelMinimo;
-            linkElement.style.display = ehPermitido ? '' : 'none';
+        if (el) {
+            let visivel = true;
+            if (config.minLevel && nivel < config.minLevel) visivel = false;
+            if (config.forbiddenLevels && config.forbiddenLevels.includes(nivel)) visivel = false;
+            
+            el.style.display = visivel ? '' : 'none';
         }
     });
 }
 
-// =================================================================
-// --- 4. Atualização da UI (Helpers de Renderização) ---
-// =================================================================
-
-/**
- * Popula a Topbar e o Dropdown com os dados do usuário.
- */
 function atualizarDadosUsuarioNaUI(userData) {
-    // 1. Atualiza a Topbar
-    const userMetaDiv = document.querySelector('.user-meta');
-    if (userMetaDiv) {
-        userMetaDiv.innerHTML = `
-            <strong>Olá, ${userData.nome || userData.email}</strong>
-            <small>${userData.cargo || 'Nível ' + userData.nivel_acesso}</small>
-        `;
+    // Topbar
+    const userMeta = document.querySelector('.user-meta');
+    if (userMeta) {
+        userMeta.innerHTML = `<strong>${userData.nome || ''}</small>`;
     }
 
-    // 2. Popula o Dropdown de Usuário
-    // (Helper para evitar 'null.textContent = ...' se o elemento não for achado)
-    const setContent = (id, valor, isHTML = false) => {
-        const el = document.getElementById(id);
-        if (el) {
-            if (isHTML) el.innerHTML = valor;
-            else el.textContent = valor;
-        }
+    // Dropdown Helper
+    const setText = (id, txt, isHtml = false) => { 
+        const el = document.getElementById(id); 
+        if(el) isHtml ? el.innerHTML = txt : el.textContent = txt; 
     };
 
-    setContent('dropdownUserName', userData.nome || 'Usuário');
-    setContent('dropdownUserId', `ID: ${userData.id_usuario || userData.id || 'N/A'}`);
-    setContent('dropdownUserEmail', `<strong>E-mail:</strong> ${userData.email || 'N/A'}`, true);
-    setContent('dropdownUserRole', `<strong>Cargo:</strong> ${userData.cargo || 'N/A'}`, true);
-    setContent('dropdownUserDept', `<strong>Departamento:</strong> ${userData.departamento || 'N/A'}`, true);
-    setContent('dropdownUserLevel', `<strong>Nível de Acesso:</strong> Nível ${userData.nivel_acesso || 'N/A'}`, true);
+    setText('dropdownUserName', userData.nome || 'Usuário');
+    setText('dropdownUserId', `ID: ${userData.id_usuario || userData.id || '?'}`);
+    setText('dropdownUserEmail', `<strong>E-mail:</strong> ${userData.email}`, true);
+    setText('dropdownUserRole', `<strong>Cargo:</strong> ${userData.cargo}`, true);
+    setText('dropdownUserDept', `<strong>Departamento:</strong> ${userData.departamento}`, true);
+    setText('dropdownUserLevel', `<strong>Nível:</strong> ${userData.nivel_acesso}`, true);
 }
 
+// =================================================================
+// --- 4. Configuração de Eventos (Listeners) ---
+// =================================================================
+
+function setupUIEvents() {
+    // 1. Sidebar Toggle (Mobile)
+    const sidebar = document.getElementById('sidebar');
+    const toggleBtn = document.getElementById('sidebarToggle');
+    
+    if (toggleBtn && sidebar) {
+        toggleBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            sidebar.classList.toggle('open');
+            toggleBtn.innerHTML = sidebar.classList.contains('open') ? '✕' : '≡';
+        });
+
+        // Fechar ao clicar fora ou em link (Mobile)
+        document.addEventListener('click', (e) => {
+            const isLink = e.target.closest('.menu-item');
+            const isOutside = !sidebar.contains(e.target) && e.target !== toggleBtn;
+            
+            if (window.innerWidth <= 1024 && (isOutside || isLink)) {
+                sidebar.classList.remove('open');
+                toggleBtn.innerHTML = '≡';
+            }
+        });
+    }
+
+    // 2. User Dropdown
+    const userTrigger = document.getElementById('userMenuTrigger');
+    const userDropdown = document.getElementById('userDropdownMenu');
+    
+    if (userTrigger && userDropdown) {
+        userTrigger.addEventListener('click', (e) => {
+            e.stopPropagation();
+            userDropdown.classList.toggle('show');
+        });
+        document.addEventListener('click', () => userDropdown.classList.remove('show'));
+    }
+
+    // 3. Logout Buttons
+    document.querySelectorAll('#logoutBtn, .btn-logout').forEach(btn => {
+        btn.addEventListener('click', fazerLogout);
+    });
+}
 
 // =================================================================
-// --- 5. Inicialização da Aplicação ---
+// --- 5. Inicialização ---
 // =================================================================
 
-/**
- * Função principal que inicia a aplicação.
- * Ela é chamada assim que o DOM está pronto.
- * 1. Busca o usuário
- * 2. Se tiver usuário, popula a UI e inicia o roteador.
- * 3. Se não tiver usuário, redireciona para o login.
- */
 async function iniciarAplicacao() {
     const userData = await getUsuarioLogado();
 
     if (userData) {
-        // 1. Armazena os dados do usuário globalmente
+        console.log("Usuário Logado:", userData); // Debug para conferir o nível
         store.usuarioLogado = userData;
-
-        // 2. Popula a UI (Topbar e Dropdown)
+        
         atualizarDadosUsuarioNaUI(userData);
-
-        // 3. Ajusta a visibilidade dos menus
         controlarAcessoMenu(userData);
-
-        // 4. Inicia o roteador (que vai carregar a página correta)
-        navigate();
-
+        setupUIEvents();
+        
+        navigate(); 
     } else {
-        // Usuário não logado ou sessão expirou
-        document.querySelector('.user-meta').innerHTML = `<strong>Faça login</strong>`;
-
-        // Se não estivermos na tela de login, redireciona
         if (!window.location.pathname.includes('login')) {
             window.location.href = '/login/tela_login.html';
         }
     }
 }
 
-// =================================================================
-// --- 6. Event Listeners Globais ---
-// =================================================================
-
-// Dispara o roteador toda vez que o hash da URL mudar
+// Globais
 window.addEventListener('hashchange', navigate);
-
-// Expõe a função de detalhes ao escopo global para ser chamada
-// por botões 'onclick' gerados dinamicamente (se houver).
 window.detalharChamadoIA = iniciarDetalhesIA;
 
-/**
- * Ponto de entrada principal.
- * Quando o HTML estiver pronto, iniciamos os listeners e a aplicação.
- */
+// Start
 document.addEventListener('DOMContentLoaded', () => {
-    
-    // Inicia o fluxo principal de autenticação e renderização
-    iniciarAplicacao();
-    const userTrigger = document.getElementById('userMenuTrigger');
-    const userDropdown = document.getElementById('userDropdownMenu');
-
-    if (userTrigger && userDropdown) {
-        // 1. Ao clicar na foto/nome, alterna o menu
-        userTrigger.addEventListener('click', (e) => {
-            e.stopPropagation(); // Evita que o clique feche o menu imediatamente
-            userDropdown.classList.toggle('show');
-        });
-
-        // 2. Fecha o menu se clicar fora dele (em qualquer lugar da tela)
-        document.addEventListener('click', (e) => {
-            if (!userTrigger.contains(e.target)) {
-                userDropdown.classList.remove('show');
-            }
-        });
-    }
-    // =================================================================
-    // LÓGICA DO MENU MOBILE (RESPONSIVO)
-    // =================================================================
-    const sidebar = document.getElementById('sidebar');
-    const toggleBtn = document.getElementById('sidebarToggle');
-    const menuLinks = document.querySelectorAll('.menu-item');
-
-    if (toggleBtn && sidebar) {
-        // 1. Clique no Botão Hambúrguer
-        toggleBtn.addEventListener('click', (e) => {
-            e.stopPropagation(); // Evita propagação indesejada
-            sidebar.classList.toggle('open'); // Adiciona/Remove classe CSS
-            
-            // Troca o ícone visualmente (Opcional)
-            const isOpen = sidebar.classList.contains('open');
-            toggleBtn.innerHTML = isOpen ? '✕' : '≡';
-        });
-
-        // 2. Fechar menu ao clicar fora (clique no .main)
-        document.querySelector('.main').addEventListener('click', () => {
-            if (window.innerWidth <= 1024 && sidebar.classList.contains('open')) {
-                sidebar.classList.remove('open');
-                toggleBtn.innerHTML = '≡';
-            }
-        });
-
-        // 3. Fechar menu ao clicar em um link (Melhora UX)
-        menuLinks.forEach(link => {
-            link.addEventListener('click', () => {
-                if (window.innerWidth <= 1024) {
-                    sidebar.classList.remove('open');
-                    toggleBtn.innerHTML = '≡';
-                }
-            });
-        });
-    }
-
-    // CORREÇÃO: Pega TODOS os botões de logout (da sidebar e do dropdown)
-    // Usar querySelectorAll garante que ambos funcionem.
-    const logoutButtons = document.querySelectorAll('#logoutBtn');
-    logoutButtons.forEach(button => {
-        button.addEventListener('click', fazerLogout);
-    });
-
-
-    // Configurações iniciais de UI
     document.getElementById('year').textContent = YEAR;
-    applyAccent(store.preferencias.accent);
+    iniciarAplicacao();
 });
