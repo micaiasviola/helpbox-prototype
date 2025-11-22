@@ -1,6 +1,6 @@
 /*
  * =================================================================
- * View: Solucionar Chamados (Refatorado com SVGs)
+ * View: Solucionar Chamados (Atualizado)
  * =================================================================
  */
 
@@ -9,6 +9,9 @@ import { renderBadge, getPrioridadeTexto, formatDate, renderDescricaoCurta } fro
 import { iniciarSolucao } from './solucionar-chamado-detalhe.js';
 import { store } from '../store.js';
 import { BaseListView } from '../utils/base-list-view.js';
+
+// 1. IMPORTAR A FUNÇÃO DA TELA DE DETALHES (Verifique se o nome do arquivo está correto)
+import { iniciarDetalhesIA } from './detalhes-IA.js'; 
 
 // --- BIBLIOTECA DE ÍCONES (SVG Clean) ---
 const ICONS = {
@@ -201,6 +204,7 @@ class ChamadoManager extends BaseListView {
     getActionButton(c) {
         const meuId = Number(this.usuarioLogadoId);
         const tecId = Number(c.tecResponsavel_Cham);
+        const criadorId = Number(c.clienteId_Cham); 
         const isAdmin = this.nivelAcesso === NIVEL_ADMIN;
         
         // 1. FECHADO
@@ -216,19 +220,32 @@ class ChamadoManager extends BaseListView {
 
         // 2. EM ANDAMENTO
         if (c.status_Cham === STATUS_EM_ANDAMENTO) {
-            // É meu chamado: Ação principal forte (Play)
+            // É meu chamado (Sou o técnico): Ação principal forte (Play)
             if (tecId === meuId) {
                 return `<button class="btn btn-third small btn-icon-text" data-action="continue" data-id="${c.id_Cham}">${ICONS.play} Continuar</button>`;
             }
-            // Sem técnico: Ação principal forte (Assumir)
+            
+            // Sem técnico: Verificar se posso assumir
             if (!c.tecResponsavel_Cham) {
+                // 2.1. [CORREÇÃO] Se EU criei o chamado, não posso assumir. E a ação deve ser 'view-author'
+                if (meuId === criadorId) {
+                    return `<button class="btn-action" data-action="view-author" data-id="${c.id_Cham}" title="Seu Chamado (Ver Detalhes)">${ICONS.eye}</button>`;
+                }
+
+                // Se não sou o criador, posso assumir
                 return `<button class="btn btn-primary small btn-icon-text" data-action="take" data-id="${c.id_Cham}">${ICONS.userPlus} Assumir</button>`;
             }
+
             // De outro técnico: Apenas visualizar
             return `<button class="btn-action" data-action="view" data-id="${c.id_Cham}" title="Ver Detalhes (Atribuído a outro)">${ICONS.eye}</button>`;
         }
         
-        // 3. ABERTO
+        // 3. ABERTO (IA)
+        // Se for meu chamado, 'view-author' para ir para os detalhes do cliente
+        if (meuId === criadorId) {
+             return `<button class="btn btn-fourth small btn-icon-text" data-action="view-author" data-id="${c.id_Cham}">${ICONS.fileText} Detalhes</button>`;
+        }
+
         return `<button class="btn btn-fourth small btn-icon-text" data-action="view" data-id="${c.id_Cham}">${ICONS.fileText} Detalhes</button>`;
     }
 
@@ -266,7 +283,6 @@ class ChamadoManager extends BaseListView {
     }
 
    drawChamados() {
-        // Lógica de Ordenação mantida idêntica à original
         const chamadosOrdenados = [...this.chamadosData].sort((a, b) => {
             const meuId = Number(this.usuarioLogadoId);
             const tecIdA = Number(a.tecResponsavel_Cham);
@@ -313,7 +329,6 @@ class ChamadoManager extends BaseListView {
     }
 
     async handleTableClick(e) {
-        // closest('button') garante que o clique no SVG interno funcione
         const btn = e.target.closest('button');
         if (!btn) return; 
 
@@ -326,6 +341,11 @@ class ChamadoManager extends BaseListView {
                 case 'view':
                 case 'continue':
                     iniciarSolucao(id); 
+                    break;
+
+                // 3. NOVA AÇÃO: Quando sou o autor, vou para detalhes (cliente)
+                case 'view-author':
+                    iniciarDetalhesIA(id);
                     break;
 
                 case 'take':
