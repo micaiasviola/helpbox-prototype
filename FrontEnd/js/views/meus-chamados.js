@@ -3,14 +3,19 @@ import { store } from '../store.js';
 import { renderBadge, getPrioridadeTexto, renderDescricaoCurta, formatDate } from '../utils/helpers.js';
 import { iniciarSolucao } from './solucionar-chamado-detalhe.js';
 
-// Constantes de Nível de Acesso e Paginação
+// --- ÍCONES SVG MODERNOS ---
+const ICONS = {
+    refresh: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>`,
+    eye: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>`,
+    play: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polygon points="10 8 16 12 10 16 10 8"></polygon></svg>`,
+    user: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:4px; vertical-align:middle;"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>`,
+    briefcase: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:4px; vertical-align:middle;"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path></svg>`,
+    list: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>`
+};
+
 const NIVEL_TECNICO = 2;
 const DEFAULT_PAGE_SIZE = 5;
-const STATUS_EM_ANDAMENTO = 'Em andamento';
 
-/**
- * Classe responsável por exibir, filtrar e buscar os chamados de um cliente específico.
- */
 class MeusChamadosView {
     constructor(containerId = 'view') {
         this.container = document.getElementById(containerId);
@@ -27,71 +32,141 @@ class MeusChamadosView {
         this.usuarioLogadoId = store.usuarioLogado?.id || null;
         this.nivelAcesso = store.usuarioLogado?.nivel_acesso || 0;
         
-        // Garante a instância global para os onclicks
         window.meusChamadosView = this;
     }
 
     async render() {
-        this.container.innerHTML = this.getTemplate();
+        this.renderBaseHTML();
         this.attachListeners();
         await this.loadChamados();
     }
 
-    getTemplate() {
+    renderBaseHTML() {
+        // Lógica do Select de Tipo (Técnico vs Cliente)
         const selectTipoHtml = this.nivelAcesso >= NIVEL_TECNICO ? `
-            <select id="filtroTipo" class="select" style="max-width:200px; border-left: 3px solid #6c5ce7;">
+            <select id="filtroTipo" class="select filter-item" style="border-left: 3px solid #6c5ce7; font-weight: 500;">
                 <option value="">Todos os Vínculos</option>
-                <option value="atribuido" ${this.filtroTipo === 'atribuido' ? 'selected' : ''}>🛠️ Para eu resolver</option>
-                <option value="criado" ${this.filtroTipo === 'criado' ? 'selected' : ''}>👤 Que eu abri</option>
+                <option value="atribuido">Para eu resolver</option>
+                <option value="criado">Que eu abri</option>
             </select>
         ` : '';
 
-        return `
-            <div class="toolbar" style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+        const styles = `
+            <style>
+                /* --- CSS PARA FORÇAR LINHA ÚNICA --- */
+                .filters-card {
+                    background: #fff; 
+                    padding: 15px; 
+                    border-radius: 8px; 
+                    box-shadow: 0 1px 3px rgba(0,0,0,0.05); 
+                    margin-bottom: 20px;
+                    
+                    /* O segredo está aqui: */
+                    display: flex; 
+                    align-items: center; 
+                    gap: 12px; 
+                    flex-wrap: nowrap; /* Não deixa quebrar linha no Desktop */
+                }
+
+                /* Selects não esticam, ficam com tamanho do conteúdo ou fixo */
+                .filter-item {
+                    width: auto;
+                    min-width: 160px; /* Tamanho mínimo para não ficar espremido */
+                    margin: 0; /* Remove margens externas se houver */
+                }
+
+                /* O input de busca cresce para ocupar o espaço que sobra */
+                .search-wrapper {
+                    flex-grow: 1; 
+                }
+                
+                .search-input {
+                    width: 100%;
+                    margin: 0;
+                }
+
+                /* Botão fica com tamanho natural */
+                .btn-refresh {
+                    white-space: nowrap; /* Texto não quebra */
+                    height: 38px; /* Força altura igual aos inputs (ajuste conforme seu CSS global) */
+                    display: inline-flex;
+                    align-items: center;
+                    gap: 6px;
+                }
+
+                /* Apenas em telas MUITO pequenas (celular), permitimos quebrar linha */
+                @media (max-width: 768px) {
+                    .filters-card { flex-wrap: wrap; }
+                    .filter-item, .search-wrapper { width: 100%; min-width: 100%; }
+                }
+
+                /* Badges e Ícones (Mantidos) */
+                .badge-vinculo { padding: 4px 8px; border-radius: 6px; font-size: 0.8rem; font-weight: 500; display: inline-flex; align-items: center; }
+                .badge-vinculo-criado { background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0; }
+                .badge-vinculo-atribuido { background: #eff6ff; color: #1d4ed8; border: 1px solid #dbeafe; }
+                .toolbar-title { display: flex; align-items: center; gap: 10px; margin-bottom: 24px; }
+                .icon-bg { background:#eef2f6; padding:8px; border-radius:8px; color:#4a5568; display: flex; align-items: center; }
+            </style>
+        `;
+
+        this.container.innerHTML = `
+            ${styles}
+            
+            <div class="toolbar-title">
+                <div class="icon-bg">${ICONS.list}</div>
+                <div>
+                    <h2 style="margin:0; font-size: 1.5rem; color: #2d3748;">Meus Chamados</h2>
+                    <small style="color:#718096">Acompanhe suas solicitações e tarefas</small>
+                </div>
+            </div>
+
+            <div class="filters-card">
+                
                 ${selectTipoHtml}
 
-                <select id="filtroStatus" class="select" style="max-width:180px">
+                <select id="filtroStatus" class="select filter-item">
                     <option value="">Todos os status</option>
                     <option ${this.filtroStatus === 'Aberto' ? 'selected' : ''}>Aberto</option>
                     <option ${this.filtroStatus === 'Em andamento' ? 'selected' : ''}>Em andamento</option>
                     <option ${this.filtroStatus === 'Fechado' ? 'selected' : ''}>Fechado</option>
                 </select>
                 
-                <input id="busca" class="input" autocomplete="off" placeholder="Buscar por ID ou descrição..." value="${this.termoBusca}" style="max-width:300px"/>
+                <div class="search-wrapper">
+                    <input id="busca" class="input search-input" autocomplete="off" placeholder="Buscar por ID ou descrição..." value="${this.termoBusca}"/>
+                </div>
                 
-                <button id="refreshChamados" class="btn">🔄 Atualizar</button>
+                <button id="refreshChamados" class="btn btn-secondary btn-refresh">
+                    ${ICONS.refresh} Atualizar
+                </button>
             </div>
             
             <div class="loading" id="loadingChamados">Carregando chamados...</div>
             
-            <div class="table-responsive">
-                <table class="table">
-                    <thead>
+            <div class="table-responsive" style="background: white; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+                <table class="table" style="margin-bottom:0;">
+                    <thead style="background: #f8f9fa; border-bottom: 2px solid #edf2f7;">
                         <tr>
-                            <th>ID</th>
-                            <th class="col-descricao">Descrição</th>
-                            <th>Status</th>
-                            <th>Prioridade</th>
-                            <th>Categoria</th>
-                            <th>Data</th>
-                            <th>Vínculo</th> 
-                            <th>Ações</th>
+                            <th style="color:#4a5568;">ID</th>
+                            <th class="col-descricao" style="color:#4a5568;">Descrição</th>
+                            <th style="color:#4a5568;">Status</th>
+                            <th style="color:#4a5568;">Prioridade</th>
+                            <th style="color:#4a5568;">Categoria</th>
+                            <th style="color:#4a5568;">Data</th>
+                            <th style="color:#4a5568;">Vínculo</th> 
+                            <th style="color:#4a5568; text-align:right;">Ações</th>
                         </tr>
                     </thead>
                     <tbody id="tbodyChamados"></tbody>
                 </table>
             </div>
-            <div id="paginationContainer" class="pagination-container"></div>
+            <div id="paginationContainer" class="pagination-container" style="margin-top:15px;"></div>
 
-            <dialog id="descModal" style="
-                position: fixed; inset: 0; margin: auto; border: none; border-radius: 8px; 
-                padding: 20px; max-width: 600px; width: 90%; box-shadow: 0 10px 25px rgba(0,0,0,0.3); z-index: 10000;
-            ">
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
-                    <h3 style="margin:0; color:#333;">Descrição do Chamado</h3>
-                    <button onclick="document.getElementById('descModal').close()" style="background:none; border:none; font-size:20px; cursor:pointer;">&times;</button>
+            <dialog id="descModal" style="position: fixed; inset: 0; margin: auto; border: none; border-radius: 12px; padding: 24px; max-width: 600px; width: 90%; box-shadow: 0 10px 25px rgba(0,0,0,0.25); z-index: 10000;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; border-bottom: 1px solid #eee; padding-bottom: 10px;">
+                    <h3 style="margin:0; color:#2d3748;">Descrição do Chamado</h3>
+                    <button onclick="document.getElementById('descModal').close()" style="background:none; border:none; font-size:24px; cursor:pointer; color:#999;">&times;</button>
                 </div>
-                <div id="descModalContent" style="line-height: 1.6; color: #555; max-height: 60vh; overflow-y: auto; white-space: pre-wrap; padding-right: 5px;"></div>
+                <div id="descModalContent" style="line-height: 1.6; color: #4a5568; max-height: 60vh; overflow-y: auto; white-space: pre-wrap; font-size: 0.95rem;"></div>
                 <div style="text-align:right; margin-top:20px;">
                     <button class="btn btn-secondary" onclick="document.getElementById('descModal').close()">Fechar</button>
                 </div>
@@ -177,24 +252,22 @@ class MeusChamadosView {
             this.chamados = response.chamados;
             this.totalCount = response.totalCount;
 
-            // 🚨 ORDENAÇÃO VISUAL AQUI
             const chamadosOrdenados = this.sortChamados(this.chamados);
 
             this.renderTable(chamadosOrdenados);
             this.renderPagination();
 
             if (this.chamados.length === 0 && tbody) {
-                tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; padding:20px;">Nenhum chamado encontrado com os filtros atuais.</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; padding:30px; color:#718096;">Nenhum chamado encontrado com os filtros atuais.</td></tr>';
             }
         } catch (error) {
-            if (tbody) tbody.innerHTML = `<tr><td colspan="8" class="td-error">Erro ao carregar chamados: ${error.message}</td></tr>`;
+            if (tbody) tbody.innerHTML = `<tr><td colspan="8" class="td-error" style="padding:20px; text-align:center; color:#e53e3e;">Erro ao carregar: ${error.message}</td></tr>`;
             console.error(error);
         } finally {
             if (loadingDiv) loadingDiv.style.display = 'none';
         }
     }
 
-    // 🚨 NOVA FUNÇÃO DE ORDENAÇÃO (IGUAL À SOLUCIONAR CHAMADOS)
     sortChamados(chamados) {
         const copy = [...chamados];
         const MEU_ID = Number(this.usuarioLogadoId); 
@@ -206,39 +279,22 @@ class MeusChamadosView {
             const statusA = a.status_Cham;
             const statusB = b.status_Cham;
 
-            // 1. Define o Grupo (Peso) - Igual ao Solucionar Chamados
             const getWeight = (status, tecId) => {
-                // Grupo 0: Meus em Andamento (Ação: Continuar/Resolver)
                 if (status === STATUS_EM_ANDAMENTO && tecId === MEU_ID) return 0;
-
-                // Grupo 1: Livres em Andamento (Ação: Assumir - Raro aqui, mas possível)
                 if (status === STATUS_EM_ANDAMENTO && !tecId) return 1;
-
-                // Grupo 2: De Outros em Andamento (Ação: Visualizar/Ver Solução)
                 if (status === STATUS_EM_ANDAMENTO && tecId !== MEU_ID) return 2;
-                
-                // Grupo 3: Abertos (Ação: Ver Solução/Detalhes)
                 if (status === 'Aberto') return 3;
-                
-                // Grupo 4: Fechados (Ação: Ver Solução)
                 if (status === 'Fechado') return 4;
-                
                 return 9;
             };
 
             const weightA = getWeight(statusA, tecIdA);
             const weightB = getWeight(statusB, tecIdB);
 
-            // 2. Ordena pelo Grupo
-            if (weightA !== weightB) {
-                return weightA - weightB;
-            }
+            if (weightA !== weightB) return weightA - weightB;
 
-            // 3. Desempate por DATA (Mais recente primeiro)
-            // Removemos a prioridade (Alta/Media) para focar na cronologia
             const dateA = new Date(a.dataAbertura_Cham);
             const dateB = new Date(b.dataAbertura_Cham);
-            
             return dateB - dateA; 
         });
     }
@@ -247,15 +303,25 @@ class MeusChamadosView {
         const statusLower = status.toLowerCase();
         const isAuthor = Number(this.usuarioLogadoId) === Number(clienteId_Cham);
 
+        // Cenário 1: Eu sou o autor (Cliente) -> Ver Solução
         if (isAuthor) {
-            return `<button class="btn btn-primary btn-sm" onclick="detalharChamadoIA(${chamadoId})">Ver Solução</button>`;
+            return `<button class="btn btn-secondary btn-sm btn-icon-text" onclick="detalharChamadoIA(${chamadoId})">
+                ${ICONS.eye} Ver Solução
+            </button>`;
         }
 
+        // Cenário 2: Sou Técnico
         if (this.nivelAcesso >= NIVEL_TECNICO) {
+            // Se está aberto ou em andamento, posso resolver
             if (statusLower !== 'fechado' && statusLower !== 'resolvido') {
-                return `<button class="btn btn-third btn-sm" onclick="iniciarSolucao(${chamadoId})">Resolver</button>`;
+                return `<button class="btn btn-third btn-sm btn-icon-text" onclick="iniciarSolucao(${chamadoId})">
+                    ${ICONS.play} Resolver
+                </button>`;
             }
-            return `<button class="btn btn-secondary btn-sm" onclick="detalharChamadoIA(${chamadoId})">Visualizar</button>`;
+            // Se fechado, apenas visualizo
+            return `<button class="btn btn-secondary btn-sm btn-icon-text" onclick="detalharChamadoIA(${chamadoId})">
+                ${ICONS.eye} Visualizar
+            </button>`;
         }
 
         return `<button class="btn btn-secondary btn-sm" disabled>Visualizar</button>`;
@@ -273,7 +339,6 @@ class MeusChamadosView {
         }
 
         let buttons = '';
-        
         if (this.currentPage > 1) {
             buttons += `<button class="btn btn-sm" onclick="window.${instanceName}.goToPage(${this.currentPage - 1})">← Anterior</button>`;
         }
@@ -283,7 +348,7 @@ class MeusChamadosView {
                 const activeClass = i === this.currentPage ? 'primary' : 'secondary';
                 buttons += `<button class="btn btn-sm ${activeClass}" onclick="window.${instanceName}.goToPage(${i})">${i}</button>`;
              } else if (i === this.currentPage - 2 || i === this.currentPage + 2) {
-                 buttons += `<span class="pagination-ellipsis">...</span>`;
+                 buttons += `<span class="pagination-ellipsis" style="padding:0 5px; color:#999;">...</span>`;
              }
         }
 
@@ -291,7 +356,7 @@ class MeusChamadosView {
             buttons += `<button class="btn btn-sm" onclick="window.${instanceName}.goToPage(${this.currentPage + 1})">Próximo →</button>`;
         }
 
-        paginationContainer.innerHTML = `<div class="pagination" style="display:flex; gap:5px; justify-content:center; margin-top:15px;">${buttons}</div>`;
+        paginationContainer.innerHTML = `<div class="pagination" style="display:flex; gap:5px; justify-content:center; margin-top:20px;">${buttons}</div>`;
     }
 
     renderTable(data) {
@@ -301,35 +366,36 @@ class MeusChamadosView {
         tbody.innerHTML = data.map(chamado => {
             const isAuthor = Number(this.usuarioLogadoId) === Number(chamado.clienteId_Cham);
             
+            // Badge estilizado para vínculo (Criado por mim vs Atribuído)
             let vinculoHtml = '';
             if (isAuthor) {
-                vinculoHtml = '<span class="badge" style="background:#e2e8f0; color:#475569;">👤 Criado por mim</span>';
+                vinculoHtml = `<span class="badge-vinculo badge-vinculo-criado">${ICONS.user} Criado por mim</span>`;
             } else {
-                vinculoHtml = '<span class="badge" style="background:#dbeafe; color:#1e40af;">🛠️ Atribuído a mim</span>';
+                vinculoHtml = `<span class="badge-vinculo badge-vinculo-atribuido">${ICONS.briefcase} Atribuído a mim</span>`;
             }
 
             const actionButton = this.getActionButton(chamado.id_Cham, chamado.status_Cham, chamado.clienteId_Cham);
 
             return `
-                 <tr>
-                    <td>${chamado.id_Cham}</td>
+                 <tr style="border-bottom: 1px solid #f0f0f0;">
+                    <td style="color:#718096; text-align:center;">${chamado.id_Cham}</td>
                     
                     <td class="col-descricao"
                         onclick="window.meusChamadosView.verDescricaoCompleta(${chamado.id_Cham})"
                         title="Clique para ver a descrição completa"
-                        style="cursor: pointer; color: #2d3436;"
+                        style="cursor: pointer; color: #4a5568;"
                     >
                         ${renderDescricaoCurta(chamado.descricao_Cham, chamado.id_Cham)}
                     </td>
 
                     <td>${renderBadge(chamado.status_Cham)}</td>
                     <td>${getPrioridadeTexto(chamado.prioridade_Cham)}</td>
-                    <td>${chamado.categoria_Cham}</td>
-                    <td>${formatDate(chamado.dataAbertura_Cham)}</td>
+                    <td style="color:#4a5568;">${chamado.categoria_Cham || '-'}</td>
+                    <td style="color:#718096; font-size:0.9em;">${formatDate(chamado.dataAbertura_Cham)}</td>
                     <td>${vinculoHtml}</td> 
-                    <td>${actionButton}</td>
+                    <td style="text-align:right;">${actionButton}</td>
                  </tr>
-             `;
+            `;
         }).join('');
     }
 }

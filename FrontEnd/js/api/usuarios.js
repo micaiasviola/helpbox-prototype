@@ -91,7 +91,21 @@ export async function apiDeleteUsuario(id) {
         if (response.ok) {
             return true;
         }
-        throw new Error('Erro ao deletar usuário');
+
+        
+        let errorMessage = 'Erro ao deletar usuário';
+        try {
+            const errorData = await response.json();
+            if (errorData.error) {
+                errorMessage = errorData.error;
+            }
+        } catch (e) {
+            // Se o backend não devolveu JSON (ex: erro fatal do servidor), mantém a mensagem genérica
+        }
+
+        throw new Error(errorMessage);
+        // ----------------------
+
     } catch (error) {
         console.error('Erro API:', error);
         throw error;

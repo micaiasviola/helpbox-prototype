@@ -165,6 +165,14 @@ router.delete('/:id', verificarADM, async (req, res) => {
         res.json({ success: true, deletedId: userId });
     } catch (error) {
         console.error('Erro ao deletar usuário:', error);
+
+        // 547 é o código de erro do SQL Server para violação de Constraint (FK)
+        if (error.number === 547) {
+            return res.status(409).json({ 
+                error: 'Não é possível excluir este usuário pois ele possui chamados ou registros vinculados.' 
+            });
+        }
+
         res.status(500).json({ error: error.message });
     }
 });
