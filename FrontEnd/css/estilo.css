@@ -698,13 +698,7 @@ html, body {
   }
 }
 
-/* Animação suave */
-@keyframes slideDown {
-    from { opacity: 0; transform: translateY(-10px); }
-    to { opacity: 1; transform: translateY(0); }
-}
-
-
+<<<<<<< HEAD
 /* BOTAO DE RADIO */
 #demanda .demanda,
 #usuario .usuario,
@@ -723,3 +717,12 @@ html, body {
     cursor: pointer;
     font-size: 14px;
     }
+=======
+/* Animação suave */
+@keyframes slideDown {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+>>>>>>> origin/main
+
