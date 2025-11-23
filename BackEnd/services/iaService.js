@@ -1,71 +1,108 @@
-// services/iaService.js
-
-// Importe o SDK
 const { GoogleGenAI } = require('@google/genai');
 
-// 🚨 Inicialize o cliente Gemini (Ele buscará a chave da variável de ambiente GEMINI_API_KEY)
-// Se você está usando uma variável diferente, ajuste o construtor.
-const ai = new GoogleGenAI({});
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
-/**
- * Gera uma resposta de IA REAL usando a API Gemini.
- * * @param {string} categoria A categoria do chamado.
- * @param {string} descricao A descrição completa do problema.
- * @returns {Promise<string>} O texto da solução sugerida pelo Gemini.
- */
-async function gerarRespostaIA(categoria, descricao, titulo) {
-    if (!descricao || descricao.length < 10) {
-        return "Desculpe, a descrição é muito curta. Por favor, forneça mais detalhes para que a IA possa analisar seu problema.";
+async function gerarRespostaIA(categoria, descricao, titulo, frequencia, impacto, usuarios) {
+    
+    const FALLBACK = {
+        solucao: "A análise automática falhou. Encaminhado para equipe técnica.",
+        prioridade: 'M' 
+    };
+
+    if (!descricao || descricao.length < 5) {
+        return { solucao: "Descrição muito curta.", prioridade: 'B' };
     }
 
     const prompt = `
-        Você é um Assistente de Suporte Técnico de primeira linha, focado em **soluções imediatas e fáceis**.
-        Sua função é analisar o chamado e fornecer uma resposta profissional, **direta e formatada usando Markdown (listas e negrito)**.
-        A resposta deve focar nos **3 passos mais simples e eficazes** de autoatendimento para o problema.
+        Você é um Assistente de Suporte Técnico (Nível 1).
         
-        **Instrução de Formatação:** Use títulos em negrito (\`**Título**\`) e listas numeradas ou com marcadores. Seja breve.
-        
-        ---
-        **Detalhes do Chamado:**
-        - Título: ${titulo} 
-        - Categoria: ${categoria}
-        - Descrição do Problema: ${descricao}
-        ---
+        --- ETAPA 1: ANÁLISE DE DADOS ---
+        Título: ${titulo} 
+        Categoria: ${categoria}
+        Descrição: ${descricao}
+        Frequência: ${frequencia || 'Não informado'}
+        Impacto: ${impacto || 'Não informado'}
+        Abrangência: ${usuarios || 'Não informado'}
 
-        Forneça APENAS a solução e os passos de autoatendimento.
+        --- ETAPA 2: CÁLCULO OCULTO DE PRIORIDADE ---
+        Use estas regras APENAS para decidir a letra (A, M ou B). NÃO escreva isso na resposta.
+        
+        1. Frequência: Ocasional(1) | Contínua(3)
+        2. Impacto: Mínimo(1) | Atraso(2) | Parado(3)
+        3. Abrangência: Eu(1) | Grupo(2) | Todos(3)
+        
+        Soma: 7-9 pts = A | 4-6 pts = M | 3 pts = B
+
+        --- ETAPA 3: GERAÇÃO DE RESPOSTA ---
+        Escreva uma resposta técnica, cordial e formatada em Markdown (listas/negrito) com a solução.
+
+        =============================================================
+        🔴 REGRAS OBRIGATÓRIAS DE FORMATAÇÃO (LEIA COM ATENÇÃO):
+        
+        1. Sua resposta deve conter APENAS: A Letra, o Pipe (|) e a Solução.
+        2. Sua resposta deve conter no MÁXIMO 1999 caracteres.
+        3. PROIBIDO escrever "Cálculo de Prioridade", "Soma total" ou "Pontos".
+        4. PROIBIDO explicar por que você escolheu a prioridade.
+        
+        EXEMPLO DO QUE EU QUERO (Faça assim):
+        M|**Olá!** Para resolver esse problema de lentidão, sugiro limpar o cache...
+
+        EXEMPLO DO QUE EU NÃO QUERO (Jamais faça isso):
+        M|Cálculo: 1+2+1 = 4. **Olá**...
+        =============================================================
     `;
 
-    const FALLBACK_MESSAGE = "A análise automática falhou. Por favor, encaminhe para a nossa equipe tecnica.";
     const MAX_RETRIES = 3;
-    let currentDelay = 1000; // 1 segundo de atraso inicial
+    let currentDelay = 1000;
 
     for (let i = 0; i < MAX_RETRIES; i++) {
         try {
-            // Tenta chamar a API
             const response = await ai.models.generateContent({
-                model: 'gemini-2.5-flash',
+                model: 'gemini-2.5-flash', 
                 contents: prompt,
                 config: { temperature: 0.1 }
             });
 
-            // Se for bem-sucedido, retorna o resultado
-            return response.text.trim();
+            let fullText = response.text ? response.text.trim() : "";
+            if (!fullText) throw new Error("Resposta vazia");
+
+            let prioridadeDetectada = 'M';
+            let solucaoDetectada = fullText;
+
+            if (fullText.includes('|')) {
+                const partes = fullText.split('|');
+                const possivelPrioridade = partes[0].trim().toUpperCase();
+                
+                if (['A', 'M', 'B'].includes(possivelPrioridade)) {
+                    prioridadeDetectada = possivelPrioridade;
+                    // Pega tudo após o primeiro pipe
+                    solucaoDetectada = partes.slice(1).join('|').trim();
+                }
+            }
+            
+            // 🚨 LIMPEZA EXTRA DE SEGURANÇA:
+            // Se mesmo com o prompt a IA teimar em escrever "Cálculo de Prioridade", a gente remove via código.
+            solucaoDetectada = solucaoDetectada
+                .replace(/Cálculo de Prioridade:[\s\S]*?(Solução Sugerida:|$)/gi, '$1') // Remove bloco de cálculo
+                .replace(/\*\*Análise:.*?\*\*/g, '') // Remove linhas de análise soltas
+                .trim();
+
+            return {
+                prioridade: prioridadeDetectada,
+                solucao: solucaoDetectada
+            };
 
         } catch (error) {
-            if (error.status === 503 && i < MAX_RETRIES - 1) {
-                // Se for erro 503 e ainda houver tentativas, espera e tenta novamente
-                console.warn(`Tentativa ${i + 1} falhou com 503. Tentando novamente em ${currentDelay / 1000}s...`);
+            if ((error.status === 503 || error.code === 503) && i < MAX_RETRIES - 1) {
                 await new Promise(resolve => setTimeout(resolve, currentDelay));
-                currentDelay *= 2; // Dobra o atraso (Exponential Backoff)
+                currentDelay *= 2; 
             } else {
-                console.error(`Erro fatal na IA (Status: ${error.status || 'Rede'}). Retornando fallback.`, error);
-                return FALLBACK_MESSAGE;
+                console.error("Erro IA:", error.message || error);
+                return FALLBACK;
             }
         }
     }
-    return FALLBACK_MESSAGE;
+    return FALLBACK;
 }
 
-module.exports = {
-    gerarRespostaIA
-};
+module.exports = { gerarRespostaIA };

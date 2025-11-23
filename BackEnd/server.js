@@ -32,7 +32,7 @@ app.use(session({
 
 // 3. CONFIGURAÇÃO DO CORS: (Pode vir após a sessão)
 app.use(cors({
-    origin: 'http://localhost:3000', 
+    origin: true, 
     credentials: true 
 }));
 
@@ -53,6 +53,6 @@ app.use('/chamados', chamadosRoutes);
 
 
 // Inicializar servidor
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
     console.log(`Servidor rodando em http://localhost:${PORT}`);
 });

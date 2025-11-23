@@ -1,115 +1,226 @@
 import { apiGetMeusChamados } from '../api/chamados.js';
 import { store } from '../store.js';
-import { renderBadge, getPrioridadeTexto, renderDescricaoCurta } from '../utils/helpers.js';
+import { renderBadge, getPrioridadeTexto, renderDescricaoCurta, formatDate } from '../utils/helpers.js';
 import { iniciarSolucao } from './solucionar-chamado-detalhe.js';
 
-// Constantes de Nível de Acesso e Paginação
+// --- ÍCONES SVG MODERNOS ---
+const ICONS = {
+    refresh: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>`,
+    eye: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>`,
+    play: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polygon points="10 8 16 12 10 16 10 8"></polygon></svg>`,
+    user: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:4px; vertical-align:middle;"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>`,
+    briefcase: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:4px; vertical-align:middle;"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path></svg>`,
+    list: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>`
+};
+
 const NIVEL_TECNICO = 2;
 const DEFAULT_PAGE_SIZE = 5;
 
-/**
- * Classe responsável por exibir, filtrar e buscar os chamados de um cliente específico.
- */
 class MeusChamadosView {
     constructor(containerId = 'view') {
         this.container = document.getElementById(containerId);
-        this.chamados = []; // Mantém apenas a lista da página atual
+        this.chamados = []; 
+        
+        // Filtros
         this.filtroStatus = '';
+        this.filtroTipo = '';
         this.termoBusca = '';
+        
         this.currentPage = 1;
         this.totalCount = 0;
         this.pageSize = DEFAULT_PAGE_SIZE;
         this.usuarioLogadoId = store.usuarioLogado?.id || null;
         this.nivelAcesso = store.usuarioLogado?.nivel_acesso || 0;
+        
+        window.meusChamadosView = this;
     }
 
     async render() {
-        this.container.innerHTML = this.getTemplate();
+        this.renderBaseHTML();
         this.attachListeners();
         await this.loadChamados();
     }
 
-    getTemplate() {
-        return `
-            <div class="toolbar">
-                <select id="filtroStatus" class="select filtro-status">
+    renderBaseHTML() {
+        // Lógica do Select de Tipo (Técnico vs Cliente)
+        const selectTipoHtml = this.nivelAcesso >= NIVEL_TECNICO ? `
+            <select id="filtroTipo" class="select filter-item" style="border-left: 3px solid #6c5ce7; font-weight: 500;">
+                <option value="">Todos os Vínculos</option>
+                <option value="atribuido">Para eu resolver</option>
+                <option value="criado">Que eu abri</option>
+            </select>
+        ` : '';
+
+        const styles = `
+            <style>
+                /* --- CSS PARA FORÇAR LINHA ÚNICA --- */
+                .filters-card {
+                    background: #fff; 
+                    padding: 15px; 
+                    border-radius: 8px; 
+                    box-shadow: 0 1px 3px rgba(0,0,0,0.05); 
+                    margin-bottom: 20px;
+                    
+                    /* O segredo está aqui: */
+                    display: flex; 
+                    align-items: center; 
+                    gap: 12px; 
+                    flex-wrap: nowrap; /* Não deixa quebrar linha no Desktop */
+                }
+
+                /* Selects não esticam, ficam com tamanho do conteúdo ou fixo */
+                .filter-item {
+                    width: auto;
+                    min-width: 160px; /* Tamanho mínimo para não ficar espremido */
+                    margin: 0; /* Remove margens externas se houver */
+                }
+
+                /* O input de busca cresce para ocupar o espaço que sobra */
+                .search-wrapper {
+                    flex-grow: 1; 
+                }
+                
+                .search-input {
+                    width: 100%;
+                    margin: 0;
+                }
+
+                /* Botão fica com tamanho natural */
+                .btn-refresh {
+                    white-space: nowrap; /* Texto não quebra */
+                    height: 38px; /* Força altura igual aos inputs (ajuste conforme seu CSS global) */
+                    display: inline-flex;
+                    align-items: center;
+                    gap: 6px;
+                }
+
+                /* Apenas em telas MUITO pequenas (celular), permitimos quebrar linha */
+                @media (max-width: 768px) {
+                    .filters-card { flex-wrap: wrap; }
+                    .filter-item, .search-wrapper { width: 100%; min-width: 100%; }
+                }
+
+                /* Badges e Ícones (Mantidos) */
+                .badge-vinculo { padding: 4px 8px; border-radius: 6px; font-size: 0.8rem; font-weight: 500; display: inline-flex; align-items: center; }
+                .badge-vinculo-criado { background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0; }
+                .badge-vinculo-atribuido { background: #eff6ff; color: #1d4ed8; border: 1px solid #dbeafe; }
+                .toolbar-title { display: flex; align-items: center; gap: 10px; margin-bottom: 24px; }
+                .icon-bg { background:#eef2f6; padding:8px; border-radius:8px; color:#4a5568; display: flex; align-items: center; }
+            </style>
+        `;
+
+        this.container.innerHTML = `
+            ${styles}
+            
+            <div class="toolbar-title">
+                <div class="icon-bg">${ICONS.list}</div>
+                <div>
+                    <h2 style="margin:0; font-size: 1.5rem; color: #2d3748;">Meus Chamados</h2>
+                    <small style="color:#718096">Acompanhe suas solicitações e tarefas</small>
+                </div>
+            </div>
+
+            <div class="filters-card">
+                
+                ${selectTipoHtml}
+
+                <select id="filtroStatus" class="select filter-item">
                     <option value="">Todos os status</option>
                     <option ${this.filtroStatus === 'Aberto' ? 'selected' : ''}>Aberto</option>
                     <option ${this.filtroStatus === 'Em andamento' ? 'selected' : ''}>Em andamento</option>
                     <option ${this.filtroStatus === 'Fechado' ? 'selected' : ''}>Fechado</option>
                 </select>
-                <input id="busca" class="input input-busca" placeholder="Buscar por descrição..." value="${this.termoBusca}"/>
-                <button id="refreshChamados" class="btn">🔄 Atualizar</button>
+                
+                <div class="search-wrapper">
+                    <input id="busca" class="input search-input" autocomplete="off" placeholder="Buscar por ID ou descrição..." value="${this.termoBusca}"/>
+                </div>
+                
+                <button id="refreshChamados" class="btn btn-secondary btn-refresh">
+                    ${ICONS.refresh} Atualizar
+                </button>
             </div>
             
             <div class="loading" id="loadingChamados">Carregando chamados...</div>
             
-            <table class="table">
-                <thead>
-                    <tr>
-                        <th>ID Chamado</th>
-                        
-                        <th>Descrição</th>
-                        <th>Status</th>
-                        <th>Prioridade</th>
-                        <th>Categoria</th>
-                        <th>Data Abertura</th>
-                        <th>Ações</th>
-                    </tr>
-                </thead>
-                <tbody id="tbodyChamados">
-                </tbody>
-            </table>
-            
-            <div id="paginationContainer" class="pagination-container""></div>
+            <div class="table-responsive" style="background: white; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+                <table class="table" style="margin-bottom:0;">
+                    <thead style="background: #f8f9fa; border-bottom: 2px solid #edf2f7;">
+                        <tr>
+                            <th style="color:#4a5568;">ID</th>
+                            <th class="col-descricao" style="color:#4a5568;">Descrição</th>
+                            <th style="color:#4a5568;">Status</th>
+                            <th style="color:#4a5568;">Prioridade</th>
+                            <th style="color:#4a5568;">Categoria</th>
+                            <th style="color:#4a5568;">Data</th>
+                            <th style="color:#4a5568;">Vínculo</th> 
+                            <th style="color:#4a5568; text-align:right;">Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tbodyChamados"></tbody>
+                </table>
+            </div>
+            <div id="paginationContainer" class="pagination-container" style="margin-top:15px;"></div>
+
+            <dialog id="descModal" style="position: fixed; inset: 0; margin: auto; border: none; border-radius: 12px; padding: 24px; max-width: 600px; width: 90%; box-shadow: 0 10px 25px rgba(0,0,0,0.25); z-index: 10000;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; border-bottom: 1px solid #eee; padding-bottom: 10px;">
+                    <h3 style="margin:0; color:#2d3748;">Descrição do Chamado</h3>
+                    <button onclick="document.getElementById('descModal').close()" style="background:none; border:none; font-size:24px; cursor:pointer; color:#999;">&times;</button>
+                </div>
+                <div id="descModalContent" style="line-height: 1.6; color: #4a5568; max-height: 60vh; overflow-y: auto; white-space: pre-wrap; font-size: 0.95rem;"></div>
+                <div style="text-align:right; margin-top:20px;">
+                    <button class="btn btn-secondary" onclick="document.getElementById('descModal').close()">Fechar</button>
+                </div>
+            </dialog>
         `;
     }
 
-    /**
-     * Dispara o carregamento dos chamados a partir do servidor.
-     * @param {boolean} resetPage Se a página atual deve ser resetada para 1.
-     */
+    verDescricaoCompleta(id) {
+        const chamado = this.chamados.find(c => c.id_Cham === id);
+        if (chamado) {
+            const modal = document.getElementById('descModal');
+            const content = document.getElementById('descModalContent');
+            content.innerText = chamado.descricao_Cham;
+            modal.showModal(); 
+        }
+    }
+
     triggerLoad(resetPage = true) {
         if (resetPage) {
             this.currentPage = 1;
         }
-        // Chamado com forceReload=true para ignorar o cache (se ele existisse)
         this.loadChamados(true);
     }
 
     attachListeners() {
         const filtroStatusEl = document.getElementById('filtroStatus');
+        const filtroTipoEl = document.getElementById('filtroTipo');
         const buscaEl = document.getElementById('busca');
         const refreshEl = document.getElementById('refreshChamados');
 
-        // Listener de Filtro de Status (Dispara busca GLOBAL no servidor)
         if (filtroStatusEl) {
             filtroStatusEl.addEventListener('change', (e) => {
                 this.filtroStatus = e.target.value;
-                this.termoBusca = document.getElementById('busca').value; // Mantém a busca
-                this.triggerLoad(true); // Reseta a página para 1 e recarrega
+                this.triggerLoad(true);
             });
         }
-
-        // Listener de Busca (Dispara busca GLOBAL no servidor)
+        if (filtroTipoEl) {
+            filtroTipoEl.addEventListener('change', (e) => {
+                this.filtroTipo = e.target.value;
+                this.triggerLoad(true);
+            });
+        }
         if (buscaEl) {
             let debounceTimeout;
             buscaEl.addEventListener('input', (e) => {
                 clearTimeout(debounceTimeout);
-
-                // Usamos debounce para não sobrecarregar o servidor a cada tecla
                 debounceTimeout = setTimeout(() => {
                     this.termoBusca = e.target.value.toLowerCase();
-                    this.filtroStatus = document.getElementById('filtroStatus').value; // Mantém o status
-                    this.triggerLoad(true); // Reseta a página para 1 e recarrega
-                }, 300); // Espera 300ms após a digitação
+                    this.triggerLoad(true);
+                }, 300);
             });
         }
-
-        // Listener de Atualizar
         if (refreshEl) {
             refreshEl.addEventListener('click', () => {
-                // Ao atualizar, mantém os filtros e recarrega a página 1
                 this.triggerLoad(true);
             });
         }
@@ -122,9 +233,6 @@ class MeusChamadosView {
         this.loadChamados(true);
     }
 
-    /**
-     * Carrega os chamados do servidor, enviando página, tamanho, busca e filtro.
-     */
     async loadChamados() {
         const loadingDiv = document.getElementById('loadingChamados');
         const tbody = document.getElementById('tbodyChamados');
@@ -133,186 +241,162 @@ class MeusChamadosView {
         if (tbody) tbody.innerHTML = '';
 
         try {
-            // 🚨 NOVO: Passando todos os parâmetros de filtragem para a API
             const response = await apiGetMeusChamados(
                 this.currentPage,
                 this.pageSize,
                 this.termoBusca,
-                this.filtroStatus
+                this.filtroStatus,
+                this.filtroTipo 
             );
 
             this.chamados = response.chamados;
             this.totalCount = response.totalCount;
 
-            this.renderTable(this.chamados); // Apenas renderiza, sem filtro local
+            const chamadosOrdenados = this.sortChamados(this.chamados);
+
+            this.renderTable(chamadosOrdenados);
             this.renderPagination();
 
             if (this.chamados.length === 0 && tbody) {
-                tbody.innerHTML = '<tr><td colspan="8" class="td-center"">Nenhum chamado encontrado.</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; padding:30px; color:#718096;">Nenhum chamado encontrado com os filtros atuais.</td></tr>';
             }
         } catch (error) {
-            if (tbody) tbody.innerHTML = `<tr><td colspan="8" class="td-error"">Erro ao carregar chamados: ${error.message}</td></tr>`;
+            if (tbody) tbody.innerHTML = `<tr><td colspan="8" class="td-error" style="padding:20px; text-align:center; color:#e53e3e;">Erro ao carregar: ${error.message}</td></tr>`;
             console.error(error);
         } finally {
             if (loadingDiv) loadingDiv.style.display = 'none';
         }
     }
 
-    
+    sortChamados(chamados) {
+        const copy = [...chamados];
+        const MEU_ID = Number(this.usuarioLogadoId); 
+        const STATUS_EM_ANDAMENTO = 'Em andamento';
+
+        return copy.sort((a, b) => {
+            const tecIdA = Number(a.tecResponsavel_Cham);
+            const tecIdB = Number(b.tecResponsavel_Cham);
+            const statusA = a.status_Cham;
+            const statusB = b.status_Cham;
+
+            const getWeight = (status, tecId) => {
+                if (status === STATUS_EM_ANDAMENTO && tecId === MEU_ID) return 0;
+                if (status === STATUS_EM_ANDAMENTO && !tecId) return 1;
+                if (status === STATUS_EM_ANDAMENTO && tecId !== MEU_ID) return 2;
+                if (status === 'Aberto') return 3;
+                if (status === 'Fechado') return 4;
+                return 9;
+            };
+
+            const weightA = getWeight(statusA, tecIdA);
+            const weightB = getWeight(statusB, tecIdB);
+
+            if (weightA !== weightB) return weightA - weightB;
+
+            const dateA = new Date(a.dataAbertura_Cham);
+            const dateB = new Date(b.dataAbertura_Cham);
+            return dateB - dateA; 
+        });
+    }
 
     getActionButton(chamadoId, status, clienteId_Cham) {
         const statusLower = status.toLowerCase();
+        const isAuthor = Number(this.usuarioLogadoId) === Number(clienteId_Cham);
 
-        // Variável para checar se o usuário logado é o autor do chamado
-        const isAuthor = this.usuarioLogadoId === clienteId_Cham;
-
-        // --- 1. LÓGICA DO CLIENTE/AUTOR ---
-        // Se o usuário logado é o autor (Nível 1, ou Admin abrindo para si mesmo)
-        // Ele SEMPRE deve ver o botão de Cliente ("Ver Solução"), a menos que seja um Nível 2 que pegou.
+        // Cenário 1: Eu sou o autor (Cliente) -> Ver Solução
         if (isAuthor) {
-            // Se o Admin/Técnico é o autor, ele deve ver como um cliente (Ver Solução)
-            return `
-                <button class="btn btn-primary btn-sm" onclick="detalharChamadoIA(${chamadoId})">
-                    Ver Solução
-                </button>
-            `;
+            return `<button class="btn btn-secondary btn-sm btn-icon-text" onclick="detalharChamadoIA(${chamadoId})">
+                ${ICONS.eye} Ver Solução
+            </button>`;
         }
 
-        // --- 2. LÓGICA DO TÉCNICO/SOLUCIONADOR ---
-        // Se não é o autor, mas é um Técnico/Admin que está no escopo de solução (Nível >= 2).
+        // Cenário 2: Sou Técnico
         if (this.nivelAcesso >= NIVEL_TECNICO) {
-
-            // Se for um chamado ativo, ele pode continuar solucionando.
-            if (statusLower !== 'fechado') {
-                return `
-                    <button class="btn btn-third btn-sm" onclick="iniciarSolucao(${chamadoId})">
-                        Continuar Solucionando
-                    </button>
-                `;
+            // Se está aberto ou em andamento, posso resolver
+            if (statusLower !== 'fechado' && statusLower !== 'resolvido') {
+                return `<button class="btn btn-third btn-sm btn-icon-text" onclick="iniciarSolucao(${chamadoId})">
+                    ${ICONS.play} Resolver
+                </button>`;
             }
+            // Se fechado, apenas visualizo
+            return `<button class="btn btn-secondary btn-sm btn-icon-text" onclick="detalharChamadoIA(${chamadoId})">
+                ${ICONS.eye} Visualizar
+            </button>`;
         }
 
-        // Se o chamado foi aberto por outra pessoa, e o usuário logado não é técnico,
-        // ou se não for um cenário de atribuição/autoria, volta para a visão padrão.
-        return `
-            <button class="btn btn-primary btn-sm" onclick="detalharChamadoIA(${chamadoId})">
-                Ver Solução
-            </button>
-        `;
+        return `<button class="btn btn-secondary btn-sm" disabled>Visualizar</button>`;
     }
 
-   renderPagination() {
-        const totalPages = Math.ceil(this.totalCount / this.pageSize);
-        const paginationContainer = document.getElementById('paginationContainer');
-        const instanceName = 'meusChamadosView'; // Nome da instância global
+    renderPagination() {
+        const totalPages = Math.ceil(this.totalCount / this.pageSize);
+        const paginationContainer = document.getElementById('paginationContainer');
+        const instanceName = 'meusChamadosView';
 
-        if (!paginationContainer || totalPages <= 1) {
-            if (paginationContainer) paginationContainer.innerHTML = '';
-            return;
-        }
+        if (!paginationContainer) return;
+        if (totalPages <= 1) {
+            paginationContainer.innerHTML = '';
+            return;
+        }
 
-        let buttons = '';
-        let pageNumbersToRender = [];
+        let buttons = '';
+        if (this.currentPage > 1) {
+            buttons += `<button class="btn btn-sm" onclick="window.${instanceName}.goToPage(${this.currentPage - 1})">← Anterior</button>`;
+        }
 
-        // 1. Caso de poucas páginas (mostrar todas)
-        if (totalPages <= 5) {
-            for (let i = 1; i <= totalPages; i++) {
-                pageNumbersToRender.push(i);
-            }
-        } else {
-            // 2. Lógica para mostrar 1, Última e 3 botões no meio
-            let start = 0;
-            let end = 0;
+        for (let i = 1; i <= totalPages; i++) {
+             if (i === 1 || i === totalPages || (i >= this.currentPage - 1 && i <= this.currentPage + 1)) {
+                const activeClass = i === this.currentPage ? 'primary' : 'secondary';
+                buttons += `<button class="btn btn-sm ${activeClass}" onclick="window.${instanceName}.goToPage(${i})">${i}</button>`;
+             } else if (i === this.currentPage - 2 || i === this.currentPage + 2) {
+                 buttons += `<span class="pagination-ellipsis" style="padding:0 5px; color:#999;">...</span>`;
+             }
+        }
 
-            if (this.currentPage <= 3) {
-                start = 1; end = 3;
-            } else if (this.currentPage > totalPages - 3) {
-                start = totalPages - 2; end = totalPages;
-            } else {
-                start = this.currentPage - 1; end = this.currentPage + 1;
-            }
+        if (this.currentPage < totalPages) {
+            buttons += `<button class="btn btn-sm" onclick="window.${instanceName}.goToPage(${this.currentPage + 1})">Próximo →</button>`;
+        }
 
-            // Adiciona a Página 1 (fixa)
-            pageNumbersToRender.push(1);
-            
-            // Adiciona os botões centrais (excluindo 1 e totalPages se estiverem no range)
-            for (let i = start; i <= end; i++) {
-                if (i > 1 && i < totalPages) {
-                    pageNumbersToRender.push(i);
-                }
-            }
+        paginationContainer.innerHTML = `<div class="pagination" style="display:flex; gap:5px; justify-content:center; margin-top:20px;">${buttons}</div>`;
+    }
 
-            // Adiciona a Última Página (fixa)
-            if (totalPages > 1) {
-                pageNumbersToRender.push(totalPages);
-            }
-
-            // Filtra duplicatas e ordena para processamento de reticências
-            pageNumbersToRender = [...new Set(pageNumbersToRender)].sort((a, b) => a - b);
-        }
-        
-        
-        // --- RENDERIZAÇÃO FINAL (Anterior, Números/Reticências, Próximo) ---
-
-        // 1. Botão ANTERIOR
-        if (this.currentPage > 1) {
-            buttons += `<button class="btn btn-sm" onclick="window.${instanceName}.goToPage(${this.currentPage - 1})">← Anterior</button>`;
-        }
-
-        // 2. Números e Reticências
-        let prevPage = 0;
-        for (const pageNum of pageNumbersToRender) {
-            // Adiciona reticências se o salto for maior que 1 página
-            if (prevPage > 0 && pageNum > prevPage + 1) {
-                buttons += `<span class="pagination-ellipsis">...</span>`;
-            }
-            
-            const activeClass = pageNum === this.currentPage ? 'primary' : 'secondary';
-            buttons += `<button class="btn btn-sm ${activeClass}" onclick="window.${instanceName}.goToPage(${pageNum})">${pageNum}</button>`;
-            
-            prevPage = pageNum;
-        }
-
-
-        // 3. Botão PRÓXIMO
-        if (this.currentPage < totalPages) {
-            buttons += `<button class="btn btn-sm" onclick="window.${instanceName}.goToPage(${this.currentPage + 1})">Próximo →</button>`;
-        }
-
-        paginationContainer.innerHTML = `<div class="pagination">${buttons}</div>`;
-    }
     renderTable(data) {
         const tbody = document.getElementById('tbodyChamados');
         if (!tbody) return;
 
         tbody.innerHTML = data.map(chamado => {
-            const nomeCompleto = `${chamado.nome_User || ''} ${chamado.sobrenome_User || ''}`.trim();
+            const isAuthor = Number(this.usuarioLogadoId) === Number(chamado.clienteId_Cham);
+            
+            // Badge estilizado para vínculo (Criado por mim vs Atribuído)
+            let vinculoHtml = '';
+            if (isAuthor) {
+                vinculoHtml = `<span class="badge-vinculo badge-vinculo-criado">${ICONS.user} Criado por mim</span>`;
+            } else {
+                vinculoHtml = `<span class="badge-vinculo badge-vinculo-atribuido">${ICONS.briefcase} Atribuído a mim</span>`;
+            }
 
-            // Passar o ID do cliente que abriu o chamado
-            const actionButton = this.getActionButton(
-                chamado.id_Cham,
-                chamado.status_Cham,
-                chamado.clienteId_Cham
-            );
+            const actionButton = this.getActionButton(chamado.id_Cham, chamado.status_Cham, chamado.clienteId_Cham);
 
             return `
-                 <tr>
-                    <td>${chamado.id_Cham}</td>
-                   
-                    <td>${renderDescricaoCurta(chamado.descricao_Cham, chamado.id_Cham)}</td>                     <td>${renderBadge(chamado.status_Cham)}</td>
-                     <td>${getPrioridadeTexto(chamado.prioridade_Cham)}</td>
-                     <td>${chamado.categoria_Cham}</td>
-                     <td>${new Date(chamado.dataAbertura_Cham).toLocaleDateString()}</td>
-                     <td>
-                        ${actionButton}
-                     </td>
-                 </tr>
-             `;
-        }).join('');
+                 <tr style="border-bottom: 1px solid #f0f0f0;">
+                    <td style="color:#718096; text-align:center;">${chamado.id_Cham}</td>
+                    
+                    <td class="col-descricao"
+                        onclick="window.meusChamadosView.verDescricaoCompleta(${chamado.id_Cham})"
+                        title="Clique para ver a descrição completa"
+                        style="cursor: pointer; color: #4a5568;"
+                    >
+                        ${renderDescricaoCurta(chamado.descricao_Cham, chamado.id_Cham)}
+                    </td>
 
-        if (data.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;">Nenhum chamado encontrado com os filtros atuais.</td></tr>';
-        }
+                    <td>${renderBadge(chamado.status_Cham)}</td>
+                    <td>${getPrioridadeTexto(chamado.prioridade_Cham)}</td>
+                    <td style="color:#4a5568;">${chamado.categoria_Cham || '-'}</td>
+                    <td style="color:#718096; font-size:0.9em;">${formatDate(chamado.dataAbertura_Cham)}</td>
+                    <td>${vinculoHtml}</td> 
+                    <td style="text-align:right;">${actionButton}</td>
+                 </tr>
+            `;
+        }).join('');
     }
 }
 

@@ -211,3 +211,5 @@ export function renderAbrirChamado() {
     const chamadoView = new AbrirChamadoView();
     chamadoView.render();
 }
+
+export { AbrirChamadoView };

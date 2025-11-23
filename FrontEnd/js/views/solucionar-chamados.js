@@ -1,389 +1,374 @@
 /*
  * =================================================================
- * View: Solucionar Chamados (solucionar-chamados.js)
- * =================================================================
- * Esta view é responsável por exibir a lista de chamados para
- * técnicos (Nível 2) e administradores (Nível 3).
- *
- * Utiliza a BaseListView para gerenciar paginação e estado de filtro.
+ * View: Solucionar Chamados (Atualizado)
  * =================================================================
  */
 
-// --- Importações ---
 import { apiGetChamados, apiGetChamadosTecnico, apiUpdateChamado, apiDeleteChamado } from '../api/chamados.js';
 import { renderBadge, getPrioridadeTexto, formatDate, renderDescricaoCurta } from '../utils/helpers.js';
 import { iniciarSolucao } from './solucionar-chamado-detalhe.js';
 import { store } from '../store.js';
-import { BaseListView } from '../utils/base-list-view.js'; // Classe base para paginação/filtros
+import { BaseListView } from '../utils/base-list-view.js';
 
-// --- Constantes da View ---
+// 1. IMPORTAR A FUNÇÃO DA TELA DE DETALHES (Verifique se o nome do arquivo está correto)
+import { iniciarDetalhesIA } from './detalhes-IA.js'; 
+
+// --- BIBLIOTECA DE ÍCONES (SVG Clean) ---
+const ICONS = {
+    refresh: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>`,
+    trash: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>`,
+    eye: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>`,
+    play: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polygon points="10 8 16 12 10 16 10 8"></polygon></svg>`,
+    userPlus: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="8.5" cy="7" r="4"></circle><line x1="20" y1="8" x2="20" y2="14"></line><line x1="23" y1="11" x2="17" y2="11"></line></svg>`,
+    list: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>`,
+    fileText: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>`
+};
+
 const NIVEL_ADMIN = 3;
 const NIVEL_TECNICO = 2;
 const STATUS_EM_ANDAMENTO = 'Em andamento';
-const DEFAULT_PAGE_SIZE = 5; // Itens por página
+const DEFAULT_PAGE_SIZE = 5;
 
-/**
- * Classe principal para gerenciar a tela "Solucionar Chamados".
- * Herda de BaseListView para reutilizar a lógica de paginação e
- * estado de filtro (currentPage, pageSize, filtroStatus, termoBusca).
- */
 class ChamadoManager extends BaseListView {
     
-    /**
-     * Prepara a classe, definindo o estado inicial e pegando dados do usuário logado.
-     */
     constructor() {
-        // Inicializa a classe base com o tamanho de página padrão
         super(DEFAULT_PAGE_SIZE); 
-        
-        // Armazena os dados brutos da API para a página atual
         this.chamadosData = [];
-        
-        // Referências do DOM que serão preenchidas no 'assignDOMelements'
-        this.tbody = null;
-        this.loadingIndicator = null;
-        this.filtroStatusEl = null;
-        this.buscaInputEl = null;
-        
-        // Contexto do usuário (do 'store' global)
+        this.elements = {};
         this.usuarioLogadoId = store.usuarioLogado?.id || null;
         this.nivelAcesso = store.usuarioLogado?.nivel_acesso || 0;
+        window.chamadoManager = this;
     }
 
-    // =================================================================
-    // --- 1. Métodos de Inicialização ---
-    // =================================================================
-
-    /**
-     * Ponto de entrada principal da classe.
-     * Verifica permissões, renderiza o HTML base e carrega os dados.
-     */
     async init() {
-        // Guarda de Rota: Somente Nível 2 (Técnico) ou superior pode acessar esta tela.
         if (!this.usuarioLogadoId || this.nivelAcesso < NIVEL_TECNICO) {
             document.getElementById('view').innerHTML = '<div class="card">Acesso não autorizado.</div>';
             return;
         }
-
-        this.renderBaseHTML();
-        this.assignDOMelements();
-        this.setupEvents();
         
-        // 'loadData' é o método da *nossa* classe (ChamadoManager)
-        // que é chamado pela classe base (BaseListView)
+        this.renderBaseHTML();
+        this.cacheElements();
+        this.setupEvents();
         await this.loadData(); 
     }
 
-    /**
-     * Atribui referências aos elementos do DOM para uso interno.
-     * @private
-     */
-    assignDOMelements() {
-        this.tbody = document.getElementById('tbody');
-        this.loadingIndicator = document.getElementById('loadingChamados');
-        this.filtroStatusEl = document.getElementById('filtroStatus');
-        this.buscaInputEl = document.getElementById('busca');
+    cacheElements() {
+        this.elements = {
+            tbody: document.getElementById('tbody'),
+            loading: document.getElementById('loadingChamados'),
+            filtroStatus: document.getElementById('filtroStatus'),
+            busca: document.getElementById('busca'),
+            refreshBtn: document.getElementById('refreshChamados'),
+            pagination: document.getElementById('paginationContainer')
+        };
     }
 
-    // =================================================================
-    // --- 2. Métodos de Renderização da UI ---
-    // =================================================================
-
-    /**
-     * Renderiza o "shell" estático da view (toolbar, tabela vazia, etc.).
-     * @private
-     */
     renderBaseHTML() {
         const view = document.getElementById('view');
+
+        const styles = `
+            <style>
+                /* Botões de Ação Específicos */
+                .btn-icon-text { display: inline-flex; align-items: center; justify-content: center; gap: 6px; font-weight: 500; }
+                
+                /* Botão apenas ícone (clean) */
+                .btn-action {
+                    padding: 6px;
+                    border-radius: 6px;
+                    border: 1px solid transparent;
+                    background: transparent;
+                    cursor: pointer;
+                    transition: all 0.2s;
+                    color: #555;
+                }
+                .btn-action:hover { background: #eef2f6; color: #1976d2; }
+                .btn-action.delete:hover { background: #ffebee; color: #d32f2f; }
+                
+                /* Ajustes de Toolbar */
+                .toolbar-title { display: flex; align-items: center; gap: 10px; }
+                .icon-bg { background:#eef2f6; padding:8px; border-radius:8px; color:#4a5568; display: flex; align-items: center; }
+            </style>
+        `;
+
         view.innerHTML = `
-            <div class="toolbar">
-                <select id="filtroStatus" class="select" style="max-width:220px">
+            ${styles}
+            
+            <div class="toolbar" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:24px;">
+                <div class="toolbar-title">
+                    <div class="icon-bg">${ICONS.list}</div>
+                    <div>
+                        <h2 style="margin:0; font-size: 1.5rem; color: #2d3748;">Central de Chamados</h2>
+                        <small style="color:#718096">Gerenciamento e resolução de tickets</small>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card" style="margin-bottom: 20px; padding: 15px; background: #fff; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); display:flex; gap: 15px; flex-wrap: wrap; align-items: center;">
+                <select id="filtroStatus" class="select" style="max-width:200px">
                     <option value="">Todos os status</option>
                     <option>Aberto</option>
                     <option>Em andamento</option>
                     <option>Fechado</option>
                 </select>
-                <input id="busca" class="input" placeholder="Buscar por descrição..." style="max-width:320px"/>
-                <button id="refreshChamados" class="btn">🔄 Atualizar</button>
+                <input id="busca" class="input" autocomplete="off" placeholder="Buscar por ID ou descrição..." style="flex: 1; min-width: 250px;" />
+                <button id="refreshChamados" class="btn btn-secondary btn-icon-text">
+                    ${ICONS.refresh} Atualizar
+                </button>
             </div>
+
             <div class="loading" id="loadingChamados">Carregando chamados...</div>
-            <table class="table">
-                <thead>
-                    <tr>
-                        <th>ID Chamado</th>
-                        <th>Responsável</th>
-                        <th>Descrição</th>
-                        <th>Status</th>
-                        <th>Prioridade</th>
-                        <th>Categoria</th>
-                        <th>Data Abertura</th>
-                        <th>Ações</th>
-                    </tr>
-                </thead>
-                <tbody id="tbody"></tbody>
-            </table>
-            <div id="paginationContainer" style="margin-top: 15px; text-align: center;"></div>
+            
+            <div class="table-responsive" style="background: white; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+                <table class="table" style="margin-bottom: 0;">
+                    <thead style="background: #f8f9fa; border-bottom: 2px solid #edf2f7;">
+                        <tr>
+                            <th style="width:60px; text-align:center; color: #4a5568;">ID</th>
+                            <th style="color: #4a5568;">Responsável</th>
+                            <th class="col-descricao" style="color: #4a5568;">Descrição</th>
+                            <th style="color: #4a5568;">Status</th>
+                            <th style="color: #4a5568;">Prioridade</th>
+                            <th style="color: #4a5568;">Categoria</th>
+                            <th style="color: #4a5568;">Data</th>
+                            <th style="color: #4a5568; text-align: right; padding-right: 20px;">Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tbody"></tbody>
+                </table>
+            </div>
+            
+            <div id="paginationContainer" class="pagination-container" style="margin-top: 15px;"></div>
+
+            <dialog id="descModalSolucao" style="position: fixed; inset: 0; margin: auto; border: none; border-radius: 12px; padding: 24px; max-width: 600px; width: 90%; box-shadow: 0 10px 25px rgba(0,0,0,0.25); z-index: 10000;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; border-bottom: 1px solid #eee; padding-bottom: 10px;">
+                    <h3 style="margin:0; color:#2d3748;">Descrição Detalhada</h3>
+                    <button onclick="document.getElementById('descModalSolucao').close()" style="background:none; border:none; font-size:24px; cursor:pointer; color: #999;">&times;</button>
+                </div>
+                <div id="descModalSolucaoContent" style="line-height: 1.6; color: #4a5568; max-height: 60vh; overflow-y: auto; white-space: pre-wrap; font-size: 0.95rem;"></div>
+                <div style="text-align:right; margin-top:20px;">
+                    <button class="btn btn-secondary" onclick="document.getElementById('descModalSolucao').close()">Fechar</button>
+                </div>
+            </dialog>
         `;
     }
 
-    /**
-     * Renderiza as linhas (<tr>) da tabela com base nos dados fornecidos.
-     * @param {Array<Object>} chamados - Lista de chamados para exibir.
-     * @private
-     */
+    verDescricaoCompleta(id) {
+        const chamado = this.chamadosData.find(c => c.id_Cham === id);
+        if (chamado) {
+            const modal = document.getElementById('descModalSolucao');
+            document.getElementById('descModalSolucaoContent').innerText = chamado.descricao_Cham;
+            modal.showModal();
+        }
+    }
+
     renderChamadosTable(chamados) {
-        if (!this.tbody) return;
+        const tbody = this.elements.tbody;
+        if (!tbody) return;
 
         if (chamados.length === 0) {
-            this.tbody.innerHTML = '<tr><td colspan="8" style="text-align: center;">Nenhum chamado encontrado.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; padding: 30px; color: #718096;">Nenhum chamado encontrado.</td></tr>';
             return;
         }
 
         const rows = chamados.map(c => {
-            // Lógica de UI complexa é movida para uma função helper
             const actionButton = this.getActionButton(c);
             
             const nomeTecnico = c.tecNome 
-                ? `${c.tecNome} ${c.tecSobrenome}` 
-                : (c.tecResponsavel_Cham ? `ID: ${c.tecResponsavel_Cham}` : 'Sem técnico');
+                ? `<span style="font-weight:500; color:#2d3748">${c.tecNome} ${c.tecSobrenome}</span>` 
+                : (c.tecResponsavel_Cham ? `ID: ${c.tecResponsavel_Cham}` : '<span style="color:#a0aec0; font-style:italic; font-size:0.9em;">Não atribuído</span>');
             
             return `
-                <tr>
-                    <td>${c.id_Cham}</td>
+                <tr style="border-bottom: 1px solid #f0f0f0;">
+                    <td style="text-align:center; color:#718096;">${c.id_Cham}</td>
                     <td>${nomeTecnico}</td>
-                    <td>${renderDescricaoCurta(c.descricao_Cham, c.id_Cham) || 'Sem descrição'}</td>
+                    
+                    <td class="col-descricao"
+                        onclick="window.chamadoManager.verDescricaoCompleta(${c.id_Cham})"
+                        title="Clique para ler a descrição completa"
+                        style="cursor: pointer; color: #4a5568;"
+                    >
+                        ${renderDescricaoCurta(c.descricao_Cham || '', c.id_Cham)}
+                    </td>
+                    
                     <td>${renderBadge(c.status_Cham)}</td>
                     <td>${getPrioridadeTexto(c.prioridade_Cham)}</td>
-                    <td>${c.categoria_Cham || 'Não definida'}</td>
-                    <td>${formatDate(c.dataAbertura_Cham)}</td>
-                    <td>
-                        ${actionButton}
-                        </td>
+                    <td style="color:#4a5568;">${c.categoria_Cham || '-'}</td>
+                    <td style="color:#718096; font-size:0.9em;">${formatDate(c.dataAbertura_Cham)}</td>
+                    <td style="text-align: right; white-space: nowrap;">${actionButton}</td>
                 </tr>
             `;
         }).join('');
         
-        this.tbody.innerHTML = rows;
+        tbody.innerHTML = rows;
     }
 
-    /**
-     * Helper que contém a lógica de negócios para decidir qual botão
-     * de ação exibir para o técnico/admin.
-     * @param {Object} c - O objeto chamado.
-     * @returns {string} O HTML dos botões.
-     * @private
-     */
-    getActionButton(c) {
-        const isAssignedToMe = c.tecResponsavel_Cham === this.usuarioLogadoId;
-        const isInProgress = c.status_Cham === STATUS_EM_ANDAMENTO;
-        const isClosed = c.status_Cham === 'Fechado'; // <-- Importante
-        const isAuthor = c.clienteId_Cham === this.usuarioLogadoId;
-        
-        // Checagem de Nível de Acesso para ADMIN
-        const isAdmin = this.nivelAcesso === NIVEL_ADMIN;
-        
-        // 1. Chamado fechado
-        if (isClosed) {
-            // Se for ADM, substitui o botão 'Fechado' por 'Excluir'.
-            if (isAdmin) {
-                // Botão Excluir (Apenas ADM E se o status for 'Fechado')
-                // Use 'danger' para indicar ação destrutiva
-                return `<button class="btn danger" data-action="delete" data-id="${c.id_Cham}" title="Excluir Chamado (Apenas ADM)">🗑️ Excluir</button>`;
-            } else {
-                // Para Técnicos (Nível 2), continua mostrando "Fechado"
-                return `<button class="btn secondary" onclick="detalharChamadoIA(${c.id_Cham})">Fechado</button>`;
-            }
-        }
+    getActionButton(c) {
+        const meuId = Number(this.usuarioLogadoId);
+        const tecId = Number(c.tecResponsavel_Cham);
+        const criadorId = Number(c.clienteId_Cham); 
+        const isAdmin = this.nivelAcesso === NIVEL_ADMIN;
+        
+        // 1. FECHADO
+        if (c.status_Cham === 'Fechado') {
+            if (isAdmin) {
+                return `
+                    <button class="btn-action" data-action="view" data-id="${c.id_Cham}" title="Ver Histórico">${ICONS.eye}</button>
+                    <button class="btn-action delete" data-action="delete" data-id="${c.id_Cham}" title="Excluir Histórico">${ICONS.trash}</button>
+                `;
+            }
+            return `<button class="btn-action" data-action="view" data-id="${c.id_Cham}" title="Ver Histórico">${ICONS.eye}</button>`;
+        }
 
-        // 2. Chamado "Em Andamento" (Lógica original permanece)
-        if (isInProgress) {
-            if (isAssignedToMe) {
-                // Está comigo, posso continuar a solução
-                return `<button class="btn btn-third" data-action="continue" data-id="${c.id_Cham}">Continuar Solucionando</button>`;
-            } 
-            
-            if (!c.tecResponsavel_Cham) {
-                // Regra de negócio: Se o usuário logado for o autor, ele não pode "pegar" o próprio chamado.
-                if (isAuthor) {
-                    return '<button class="btn btn-secondary" disabled>Você é o Autor</button>';
-                }
-                // Está "Em Andamento" mas livre (ex: fila da IA), pode pegar.
-                return `<button class="btn btn-primary" data-action="take" data-id="${c.id_Cham}">🛠️ Solucionar Chamado</button>`;
-            }
-            
-            // Está em andamento E com outro técnico
-            return '<button class="btn btn-secondary" disabled>Em Andamento (Atribuído)</button>';
-        }
-        
-        // 3. Chamado "Aberto" (Lógica original permanece)
-        if (c.status_Cham === 'Aberto') {
-            return '<button class="btn btn-secondary" disabled>Aguardando IA/Cliente</button>';
-        }
+        // 2. EM ANDAMENTO
+        if (c.status_Cham === STATUS_EM_ANDAMENTO) {
+            // É meu chamado (Sou o técnico): Ação principal forte (Play)
+            if (tecId === meuId) {
+                return `<button class="btn btn-third small btn-icon-text" data-action="continue" data-id="${c.id_Cham}">${ICONS.play} Continuar</button>`;
+            }
+            
+            // Sem técnico: Verificar se posso assumir
+            if (!c.tecResponsavel_Cham) {
+                // 2.1. [CORREÇÃO] Se EU criei o chamado, não posso assumir. E a ação deve ser 'view-author'
+                if (meuId === criadorId) {
+                    return `<button class="btn-action" data-action="view-author" data-id="${c.id_Cham}" title="Seu Chamado (Ver Detalhes)">${ICONS.eye}</button>`;
+                }
 
-        // Fallback
-        return '';
-    }
+                // Se não sou o criador, posso assumir
+                return `<button class="btn btn-primary small btn-icon-text" data-action="take" data-id="${c.id_Cham}">${ICONS.userPlus} Assumir</button>`;
+            }
 
-    // =================================================================
-    // --- 3. Métodos de Gerenciamento de Dados ---
-    // =================================================================
-
-    /**
-     * Carrega os dados da API com base no nível de acesso e nos filtros
-     * atuais (armazenados na classe base).
-     * Este método é chamado por 'init' e pela paginação (BaseListView).
-     */
-    async loadData() {
-        if (this.loadingIndicator) {
-            this.loadingIndicator.style.display = 'block';
-            this.loadingIndicator.textContent = 'Carregando chamados...';
+            // De outro técnico: Apenas visualizar
+            return `<button class="btn-action" data-action="view" data-id="${c.id_Cham}" title="Ver Detalhes (Atribuído a outro)">${ICONS.eye}</button>`;
         }
         
-        try {
-            const apiParams = [this.currentPage, this.pageSize, this.termoBusca, this.filtroStatus];
-            let response;
+        // 3. ABERTO (IA)
+        // Se for meu chamado, 'view-author' para ir para os detalhes do cliente
+        if (meuId === criadorId) {
+             return `<button class="btn btn-fourth small btn-icon-text" data-action="view-author" data-id="${c.id_Cham}">${ICONS.fileText} Detalhes</button>`;
+        }
 
-            // Decide qual endpoint da API chamar com base no nível de acesso
+        return `<button class="btn btn-fourth small btn-icon-text" data-action="view" data-id="${c.id_Cham}">${ICONS.fileText} Detalhes</button>`;
+    }
+
+    async loadData() {
+        this.toggleLoading(true);
+        
+        try {
+            const filtroStatus = this.elements.filtroStatus.value;
+            let termoBusca = this.elements.busca.value.trim();
+            const apiParams = [this.currentPage, this.pageSize, termoBusca, filtroStatus];
+            
+            let response;
             if (this.nivelAcesso === NIVEL_ADMIN) {
-                // Admin vê TODOS os chamados
                 response = await apiGetChamados(...apiParams);
             } else {
-                // Técnico vê apenas os chamados da fila "Em Andamento"
                 response = await apiGetChamadosTecnico(...apiParams);
             }
 
-            // A API deve retornar { chamados: [...], totalCount: N }
-            this.chamadosData = response.chamados;
-            this.totalCount = response.totalCount; // Informa à BaseListView o total de itens
+            this.chamadosData = response.chamados || [];
+            this.totalCount = response.totalCount || 0; 
 
-            this.drawChamados(); // Renderiza os dados recebidos
-            this.renderPagination(); // Renderiza os controles de paginação (método da BaseListView)
+            this.drawChamados();
+            this.renderPagination();
 
         } catch (error) {
-            console.error('Erro ao carregar chamados:', error);
-            if (this.loadingIndicator) {
-                this.loadingIndicator.textContent = 'Erro ao carregar chamados. Tente novamente.';
-            }
+            console.error('Erro loadData:', error);
+            this.elements.tbody.innerHTML = '<tr><td colspan="8" class="td-error" style="text-align:center; padding:20px; color:#e53e3e;">Erro ao carregar dados. Tente novamente.</td></tr>';
         } finally {
-            if (this.loadingIndicator) {
-                this.loadingIndicator.style.display = 'none';
-            }
+            this.toggleLoading(false);
         }
     }
 
-    /**
-     * Renderiza os dados na tabela.
-     * Esta função é chamada após 'loadData' buscar os dados.
-     * A filtragem já foi feita pelo back-end.
-     */
-    drawChamados() {
-        // A filtragem foi removida daqui, pois 'this.chamadosData' já
-        // contém os dados corretos (filtrados e paginados) vindos da API.
-        this.renderChamadosTable(this.chamadosData);
+    toggleLoading(show) {
+        if (this.elements.loading) this.elements.loading.style.display = show ? 'block' : 'none';
     }
 
-    // =================================================================
-    // --- 4. Métodos de Gerenciamento de Eventos ---
-    // =================================================================
+   drawChamados() {
+        const chamadosOrdenados = [...this.chamadosData].sort((a, b) => {
+            const meuId = Number(this.usuarioLogadoId);
+            const tecIdA = Number(a.tecResponsavel_Cham);
+            const tecIdB = Number(b.tecResponsavel_Cham);
+            const statusA = a.status_Cham;
+            const statusB = b.status_Cham;
 
-    /**
-     * Configura todos os listeners de eventos para a view.
-     * @private
-     */
-    setupEvents() {
-        // O 'triggerLoad(true)' é um método da BaseListView.
-        // O 'true' indica que a paginação deve ser resetada para a página 1.
-        
-        document.getElementById('refreshChamados').addEventListener('click', () => {
-            this.triggerLoad(false); // 'false' = recarrega a página atual
-        });
+            const getWeight = (status, tecId) => {
+                if (status === 'Em andamento') {
+                    if (tecId === meuId) return 0; 
+                    if (!tecId) return 1;          
+                    return 2;                      
+                }
+                if (status === 'Aberto') return 3;
+                if (status === 'Fechado') return 4;
+                return 9;
+            };
 
-        this.filtroStatusEl.addEventListener('change', (e) => {
-            this.filtroStatus = e.target.value; // Atualiza o estado na BaseListView
-            this.triggerLoad(true); // Reseta para a página 1
-        });
+            const weightA = getWeight(statusA, tecIdA);
+            const weightB = getWeight(statusB, tecIdB);
 
-        this.buscaInputEl.addEventListener('input', (e) => {
-            this.termoBusca = e.target.value; // Atualiza o estado na BaseListView
-            this.triggerLoad(true); // Reseta para a página 1
-        });
-        
-        // Delegação de eventos: Um único listener no <tbody>
-        // para gerenciar cliques em todos os botões de ação.
-        this.tbody.addEventListener('click', (e) => this.handleChamadoActions(e));
-    }
+            if (weightA !== weightB) return weightA - weightB;
 
-    /**
-     * Manipulador central para todos os cliques nos botões de ação da tabela.
-     * @param {Event} e - O objeto de evento do clique.
-     * @private
-     */
-    async handleChamadoActions(e) {
-        // Encontra o botão mais próximo que foi clicado
-        const btn = e.target.closest('button');
-        if (!btn) return; // O clique não foi em um botão
-
-        const id = +btn.dataset.id; // Converte o ID para número
-        const action = btn.dataset.action;
-
-        if (!action || !id) return; // Botão sem ação ou ID
-
-        try {
-            if (action === 'take') {
-                // Ação: Pegar um chamado da fila
-                const updatePayload = {
-                    status_Cham: STATUS_EM_ANDAMENTO, // Define o status
-                    tecResponsavel_Cham: this.usuarioLogadoId // Atribui a si mesmo
-                };
-
-                await apiUpdateChamado(id, updatePayload);
-                alert(`Chamado ${id} atribuído a você!`);
-                iniciarSolucao(id); // Navega para a tela de detalhes da solução
-                return; // Encerra a execução aqui
-            }
-            
-            if (action === 'continue') {
-                // Ação: Continuar um chamado que já é seu
-                iniciarSolucao(id); // Apenas navega para a tela de solução
-                return; // Encerra
-            }
+            const dateA = new Date(a.dataAbertura_Cham);
+            const dateB = new Date(b.dataAbertura_Cham);
             
-            // NOVO: Lógica para a ação 'delete'
-            if (action === 'delete') {
-                // REFORÇO DE SEGURANÇA (lado do cliente): Somente ADM pode tentar excluir
-                if (this.nivelAcesso !== NIVEL_ADMIN) {
-                    alert('Acesso negado. Apenas administradores podem excluir chamados.');
-                    return;
-                }
+            return dateB - dateA; 
+        });
+
+        this.renderChamadosTable(chamadosOrdenados);
+    }
+
+    setupEvents() {
+        this.elements.refreshBtn.addEventListener('click', () => this.loadData());
+        this.elements.filtroStatus.addEventListener('change', () => { this.currentPage = 1; this.loadData(); });
+        
+        let timeout;
+        this.elements.busca.addEventListener('input', () => {
+            clearTimeout(timeout);
+            timeout = setTimeout(() => { this.currentPage = 1; this.loadData(); }, 300);
+        });
+
+        this.elements.tbody.addEventListener('click', (e) => this.handleTableClick(e));
+    }
+
+    async handleTableClick(e) {
+        const btn = e.target.closest('button');
+        if (!btn) return; 
+
+        const id = +btn.dataset.id; 
+        const action = btn.dataset.action;
+        if (!action || !id) return; 
+
+        try {
+            switch (action) {
+                case 'view':
+                case 'continue':
+                    iniciarSolucao(id); 
+                    break;
+
+                // 3. NOVA AÇÃO: Quando sou o autor, vou para detalhes (cliente)
+                case 'view-author':
+                    iniciarDetalhesIA(id);
+                    break;
+
+                case 'take':
+                    await apiUpdateChamado(id, {
+                        status_Cham: STATUS_EM_ANDAMENTO, 
+                        tecResponsavel_Cham: this.usuarioLogadoId 
+                    });
+                    iniciarSolucao(id); 
+                    break;
                 
-                // Confirmação de segurança antes da exclusão
-                if (!confirm(`Tem certeza que deseja EXCLUIR permanentemente o chamado ID ${id}? Esta ação não pode ser desfeita.`)) {
-                    return; // Usuário cancelou
-                }
-
-                // Chamada à API para exclusão
-                await apiDeleteChamado(id);
-                alert(`Chamado ID ${id} excluído com sucesso.`);
-            }
-
-            // Recarrega os dados da lista se uma ação (como 'delete') for concluída
-            await this.loadData();
-
-        } catch (error) {
-            alert('Erro ao processar ação do chamado: ' + (error.message || 'Erro desconhecido.'));
-            console.error('Erro na ação do chamado:', action, error);
-        }
-    }
+                case 'delete':
+                    if (!confirm(`Tem certeza que deseja excluir o chamado #${id}?`)) return;
+                    await apiDeleteChamado(id);
+                    await this.loadData(); 
+                    break;
+            }
+        } catch (error) {
+            alert('Erro na ação: ' + error.message);
+        }
+    }
 }
 
-
-/**
- * Função de exportação pública.
- * Cria a instância da classe e a inicia.
- * É chamada pelo roteador (main.js).
- */
 export async function renderTodosChamados() {
-    // Expõe a instância ao 'window' para depuração fácil, se necessário
     window.chamadoManager = new ChamadoManager();
     await window.chamadoManager.init();
 }

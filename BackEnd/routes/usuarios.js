@@ -70,28 +70,40 @@ router.post('/', verificarADM, async (req, res) => {
 });
 
 // PUT atualizar usuário
+// PUT atualizar usuário
 router.put('/:id', verificarADM, async (req, res) => {
     try {
         const { id } = req.params;
         const { nome_User, sobrenome_User, email_User, senha_User, cargo_User, departamento_User, nivelAcesso_User } = req.body;
 
-        if (!nome_User || !email_User || !senha_User || !departamento_User) {
-            return res.status(400).json({ error: "nome, email, senha e departamento são obrigatórios" });
+        // 🚨 CORREÇÃO AQUI: Removi '!senha_User' desta validação.
+        // Na edição, a senha é opcional. O código abaixo já trata se ela vier vazia.
+        if (!nome_User || !email_User || !departamento_User) {
+            return res.status(400).json({ error: "Nome, email e departamento são obrigatórios" });
         }
         
         let senhaParaBD = senha_User;
         
-        // ** NOVO: Hashear a senha APENAS se ela for enviada no corpo da requisição
-        if (senha_User && senha_User.length > 0) { 
+        // Hashear a senha APENAS se ela foi enviada (não está vazia ou undefined)
+        if (senha_User && senha_User.trim().length > 0) { 
              const saltRounds = 10;
              senhaParaBD = await bcrypt.hash(senha_User, saltRounds);
         }
 
         const pool = await getPool();
         const request = pool.request()
-            // ... (outros inputs) ...
-            .input('senha', sql.VarChar(255), senhaParaBD) // <--- USAR O HASH OU A SENHA ORIGINAL
-            .input('nivelAcesso', sql.Int, nivelAcesso_User)
+            .input('id', sql.Int, parseInt(id))
+            .input('nome', sql.VarChar(255), nome_User)
+            .input('sobrenome', sql.VarChar(255), sobrenome_User)
+            .input('email', sql.VarChar(255), email_User)
+            .input('cargo', sql.VarChar(255), cargo_User)
+            .input('departamento', sql.VarChar(255), departamento_User)
+            .input('nivelAcesso', sql.Int, nivelAcesso_User);
+
+        // Se a senha foi enviada, adicionamos o parâmetro da senha
+        if (senha_User && senha_User.trim().length > 0) {
+             request.input('senha', sql.VarChar(255), senhaParaBD);
+        }
 
         let updateQuery = `
             UPDATE Usuario SET
@@ -103,8 +115,8 @@ router.put('/:id', verificarADM, async (req, res) => {
               nivelAcesso_User = @nivelAcesso
         `;
         
-        // Se a senha foi alterada/hasheada, adicionamos ao UPDATE
-        if (senha_User && senha_User.length > 0) {
+        // Só adiciona a coluna de senha no SQL se ela foi fornecida
+        if (senha_User && senha_User.trim().length > 0) {
             updateQuery += `, senha_User = @senha`;
         }
 
@@ -153,6 +165,14 @@ router.delete('/:id', verificarADM, async (req, res) => {
         res.json({ success: true, deletedId: userId });
     } catch (error) {
         console.error('Erro ao deletar usuário:', error);
+
+        // 547 é o código de erro do SQL Server para violação de Constraint (FK)
+        if (error.number === 547) {
+            return res.status(409).json({ 
+                error: 'Não é possível excluir este usuário pois ele possui chamados ou registros vinculados.' 
+            });
+        }
+
         res.status(500).json({ error: error.message });
     }
 });

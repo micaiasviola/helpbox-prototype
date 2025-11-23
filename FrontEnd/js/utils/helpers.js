@@ -39,17 +39,6 @@ export function getPrioridadeTexto(prioridade) {
     return `<span class="badge ${p.class}">${p.text}</span>`;
 }
 
-/**
- * Aplica a cor de destaque selecionada na interface
- */
-export function applyAccent(color) {
-    document.documentElement.style.setProperty('--primary', color);
-    const primaryElements = document.querySelectorAll('.btn:not(.ghost), .badge, .menu-item.active');
-    primaryElements.forEach(el => {
-        el.style.backgroundColor = color;
-        if (el.classList.contains('menu-item')) el.style.borderLeftColor = color;
-    });
-}
 
 /**
  * Trunca a descrição do chamado e adiciona um botão para visualização completa.
