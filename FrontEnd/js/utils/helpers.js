@@ -56,7 +56,7 @@ export function renderDescricaoCurta(descricao, chamadoId) {
         const textoCurto = descricao.substring(0, MAX_LENGTH) + '...';
         
         // Mantido o onclick original que funcionava para o layout
-        return `${textoCurto} <button class="btn-mini" onclick="mostrarDescricaoCompleta('${chamadoId}')" title="Ver descrição completa">+</button>`;
+        return `${textoCurto} <button class="btn-mini" onclick="mostrarDescricaoCompleta('${chamadoId}')" title="Ver descrição completa"></button>`;
     }
 
     return descricao; // Retorna a descrição completa se for curta

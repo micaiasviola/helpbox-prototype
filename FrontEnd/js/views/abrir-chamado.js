@@ -28,7 +28,7 @@ class AbrirChamadoView {
             <form class="form" id="${this.formId}">
                 <div>
                     <label class="label">Assunto</label>
-                    <input class="input" name="titulo" required placeholder="Descreva brevemente o problema" />
+                    <input class="input" autocomplete="off" name="titulo" required placeholder="Descreva brevemente o problema" />
                 </div>
                 <div class="grid" style="grid-template-columns: repeat(3, 1fr); gap:12px;">
                     <div>
@@ -166,10 +166,15 @@ class AbrirChamadoView {
             };
             
 
-            await apiCreateChamado(novoChamado);
+            // Captura o objeto retornado pela API
+            const resultado = await apiCreateChamado(novoChamado);
 
-            // Sucesso
-            this.showAlert('✅ Chamado aberto com sucesso.', false);
+            // Extrai o ID (supondo que o backend retorne 'id_Cham' ou 'id')
+            const idGerado = resultado.id_Cham || resultado.id || '?';
+
+            // Sucesso com ID
+            this.showAlert(`✅ Chamado #${idGerado} aberto com sucesso.`, false);
+            // -----------------------
             form.reset();
 
         } catch (error) {
