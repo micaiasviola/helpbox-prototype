@@ -14,7 +14,7 @@ const authRoutes = require('./routes/auth.js');
 const verificarADM = require('./middlewares/verificarADM.js');
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 
 // Middlewares BÁSICOS e de SESSÃO (DEVE ESTAR NO TOPO)
 app.use(express.json()); // 1. Processar JSON
