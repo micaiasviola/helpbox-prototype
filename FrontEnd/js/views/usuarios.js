@@ -1,7 +1,23 @@
+/**
+ * @file usuarios.js
+ * @description Módulo de Gerenciamento de Usuários.
+ * * Eu projetei este arquivo para ser autossuficiente na renderização e lógica da tela de usuários.
+ * Ele consome a API, gerencia o estado local da tabela e manipula o DOM diretamente.
+ * Optei por não usar frameworks reativos aqui para manter o código leve e "vanilla",
+ * ideal para quem quer entender os fundamentos do JavaScript moderno.
+ * * @author [Micaías Viola - Full Stack Developer]
+ */
+
 import { apiGetUsuarios, apiCreateUsuario, apiUpdateUsuario, apiDeleteUsuario } from '../api/usuarios.js';
 import { showConfirmationModal } from '../utils/feedbackmodal.js';
 
-// --- BIBLIOTECA DE ÍCONES (SVG Moderno) ---
+/**
+ * @constant {Object} ICONS
+ * @description Biblioteca de ícones SVG inline.
+ * * Decidi declarar os ícones diretamente aqui como constantes de string.
+ * Isso evita requisições HTTP extras para carregar bibliotecas externas (como FontAwesome)
+ * e garante que o carregamento da interface seja instantâneo.
+ */
 const ICONS = {
     plus: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>`,
     edit: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>`,
@@ -10,14 +26,24 @@ const ICONS = {
 };
 
 /**
- * Exibe a interface de gerenciamento de usuários
+ * Função Principal: renderUsuarios
+ * * Esta é a única função exportada. Ela atua como o "Componente" da página.
+ * Eu sigo uma abordagem de "Destruir e Recriar": quando chamada, ela limpa a view atual
+ * e injeta o HTML/CSS novo. Isso garante que não haja lixo de memória de telas anteriores.
  */
 export function renderUsuarios() {
     const view = document.getElementById('view');
 
+    /**
+     * @section CSS Injection
+     * Optei por usar CSS-in-JS (via Template String) aqui.
+     * Isso mantém o estilo encapsulado junto com a lógica. Se eu apagar este arquivo JS,
+     * o estilo vai junto, facilitando a manutenção futura.
+     */
     const styles = `
         <style>
             /* --- CSS GERAL DE DIALOGS --- */
+            /* O backdrop-filter dá aquele efeito de desfoque moderno no fundo */
             dialog::backdrop { background: rgba(0, 0, 0, 0.5); backdrop-filter: blur(2px); }
             
             /* --- CSS ESPECÍFICO DESTA TELA --- */
@@ -31,7 +57,8 @@ export function renderUsuarios() {
             .full-width { grid-column: span 2; }
             .modal-actions { display: flex; justify-content: flex-end; gap: 12px; }
 
-            /* --- BADGES (Etiquetas) --- */
+            /* --- BADGES (Etiquetas Visuais) --- */
+            /* Uso cores semânticas para diferenciar hierarquias rapidamente */
             .badge { display: inline-block; padding: 4px 10px; border-radius: 20px; font-size: 0.8em; font-weight: 600; letter-spacing: 0.3px; }
             .badge-adm { background-color: #ffebee; color: #c62828; border: 1px solid #ffcdd2; }
             .badge-tec { background-color: #e3f2fd; color: #1565c0; border: 1px solid #bbdefb; }
@@ -41,11 +68,10 @@ export function renderUsuarios() {
             .badge-nivel-2 { color: #1976d2; }
             .badge-nivel-1 { color: #757575; }
 
-            /* --- AJUSTES DE ÍCONES E BOTÕES --- */
-            /* Isso garante que o ícone fique alinhado com o texto */
+            /* --- BOTÕES E AÇÕES --- */
             .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
             
-            /* Botões de ação da tabela mais compactos e modernos */
+            /* Criei classes específicas .btn-action para limpar a tabela visualmente */
             .btn-action {
                 padding: 6px;
                 border-radius: 6px;
@@ -60,6 +86,12 @@ export function renderUsuarios() {
         </style>
     `;
 
+    /**
+     * @section HTML Structure
+     * Monto a estrutura da página. 
+     * Uso a tag <dialog> nativa do HTML5 para o modal, pois ela resolve nativamente
+     * questões de acessibilidade e sobreposição (z-index) que antigamente davam muito trabalho.
+     */
     view.innerHTML = `
     ${styles}
     
@@ -152,15 +184,17 @@ export function renderUsuarios() {
             </div>
         </form>
     </dialog>
-  `;
+    `;
 
-    // --- REFERÊNCIAS DOM E VARIÁVEIS ---
+    // --- REFERÊNCIAS DOM E VARIÁVEIS DE ESTADO ---
+    // Eu capturo todos os elementos que vou precisar manipular logo no início.
+    // Isso é uma boa prática para evitar ficar varrendo o DOM repetidamente (performance).
     const body = document.getElementById('uBody');
     const alertBox = document.getElementById('alert');
     const dialog = document.getElementById('userDialog');
     const btnSave = document.getElementById('btnSaveModal');
     
-    // Inputs
+    // Inputs do formulário
     const inpNome = document.getElementById('novoNome');
     const inpSobrenome = document.getElementById('novoSobrenome');
     const inpEmail = document.getElementById('novoEmail');
@@ -170,17 +204,38 @@ export function renderUsuarios() {
     const inpCargo = document.getElementById('novoCargo');
     const inpPermissao = document.getElementById('novoPermissao');
 
+    // Estado Local
     const nivelAcesso = { '1': 'Baixo', '2': 'Médio', '3': 'Alto' };
+    
+    /** * @type {Array} 
+     * Armazeno os usuários localmente para permitir operações rápidas (como filtro e busca futura)
+     * sem precisar bater na API toda hora.
+     */
     let usuarios = [];
+    
+    /** * @type {number|null} 
+     * Variável de controle essencial: se for null, o modal está em modo CRIAÇÃO.
+     * Se tiver um ID, o modal está em modo EDIÇÃO.
+     */
     let editId = null;
 
     // --- FUNÇÕES AUXILIARES ---
 
+    /**
+     * @function showAlert
+     * @description Exibe feedback visual temporário para o usuário.
+     * @param {string} msg Mensagem a ser exibida.
+     * @param {string} tipo 'success' ou 'error'.
+     */
     function showAlert(msg, tipo = 'success') {
         alertBox.innerHTML = `<div class="card" style="padding:12px; margin-bottom:20px; border-left: 4px solid ${tipo === 'error' ? '#dc3545' : '#198754'}; background-color: white; color: #333; box-shadow: 0 2px 5px rgba(0,0,0,0.05);">${msg}</div>`;
         setTimeout(() => alertBox.innerHTML = '', 3000);
     }
 
+    /**
+     * @function getCargoBadge
+     * @description Transforma o texto do cargo em um componente visual (Badge).
+     */
     function getCargoBadge(cargo) {
         if (cargo === 'Administrador') return `<span class="badge badge-adm">Admin</span>`;
         if (cargo === 'Tecnico') return `<span class="badge badge-tec">Técnico</span>`;
@@ -192,39 +247,61 @@ export function renderUsuarios() {
         return `<span class="badge-nivel-${nivel}">${labels[nivel] || nivel}</span>`;
     }
 
+    /**
+     * @function openModal
+     * @description Prepara e abre o modal.
+     * * Aqui está a lógica inteligente: eu uso a mesma função para criar e editar.
+     * Se receber um objeto 'user', preencho o formulário e mudo o texto do botão.
+     * Se não, limpo tudo para um novo cadastro.
+     * * @param {Object|null} user O objeto usuário se for edição, ou null se for novo.
+     */
     function openModal(user = null) {
+        // Reseto estilos de validação visual
         inpSenha.style.borderColor = '';
         inpConfirma.style.borderColor = '';
 
         if (user) {
+            // --- MODO EDIÇÃO ---
             editId = user.id_User;
             document.getElementById('modalTitle').textContent = `Editar ${user.nome_User}`;
+            
+            // Populo os inputs
             inpNome.value = user.nome_User;
             inpSobrenome.value = user.sobrenome_User;
             inpEmail.value = user.email_User;
+            inpDep.value = user.departamento_User;
+            inpCargo.value = user.cargo_User;
+            inpPermissao.value = user.nivelAcesso_User;
+            
+            // A senha não é obrigatória na edição, então deixo vazio
             inpSenha.value = ''; 
             inpConfirma.value = '';
             inpSenha.placeholder = "Deixe vazio para manter a atual";
             inpConfirma.placeholder = "";
-            inpDep.value = user.departamento_User;
-            inpCargo.value = user.cargo_User;
-            inpPermissao.value = user.nivelAcesso_User;
+            
             btnSave.textContent = 'Salvar Alterações';
         } else {
+            // --- MODO CRIAÇÃO ---
             editId = null;
             document.getElementById('modalTitle').textContent = 'Novo Usuário';
-            document.getElementById('userForm').reset();
+            document.getElementById('userForm').reset(); // Limpa o formulário nativamente
+            
             inpSenha.placeholder = "";
             inpConfirma.placeholder = "";
             btnSave.textContent = 'Criar Usuário';
         }
-        dialog.showModal();
+        dialog.showModal(); // Método nativo do browser, lida com foco e backdrop
     }
 
     function closeModal() {
         dialog.close();
     }
 
+    /**
+     * @function fetchUsuarios
+     * @async
+     * @description Busca inicial de dados. Exibe um loader simples enquanto aguarda.
+     */
     async function fetchUsuarios() {
         try {
             body.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:30px; color:#666;">Carregando usuários...</td></tr>';
@@ -235,6 +312,12 @@ export function renderUsuarios() {
         }
     }
 
+    /**
+     * @function draw
+     * @description Renderiza a tabela baseada no estado local (array 'usuarios').
+     * * Eu sempre limpo o tbody e recrio as linhas. Para listas pequenas/médias,
+     * isso é extremamente rápido e simplifica muito a lógica de atualização (não preciso achar a linha exata no DOM para mudar).
+     */
     function draw() {
         body.innerHTML = '';
         if (usuarios.length === 0) {
@@ -246,8 +329,9 @@ export function renderUsuarios() {
             const tr = document.createElement('tr');
             tr.style.borderBottom = '1px solid #f0f0f0';
             
-            // Aqui usamos os botões .btn-action que criamos no CSS
-            // Eles são apenas os ícones, o que deixa a tabela muito mais limpa
+            // Injeção de HTML seguro.
+            // Note o uso de data-attributes (data-id) nos botões. 
+            // Isso permite que eu identifique onde cliquei depois, sem criar um listener para cada botão.
             tr.innerHTML = `
                 <td style="text-align:center; color:#666;">${u.id_User}</td>
                 <td style="font-weight:500; color:#2d3748;">${u.nome_User} ${u.sobrenome_User}</td>
@@ -273,7 +357,11 @@ export function renderUsuarios() {
     document.getElementById('btnOpenModal').addEventListener('click', () => openModal());
     document.getElementById('btnCancelModal').addEventListener('click', closeModal);
 
-    // BOTÃO SALVAR
+    /**
+     * @listener Botão Salvar
+     * @description Gerencia tanto a criação quanto a edição.
+     * * Eu prefiro validar os dados aqui no front-end antes de enviar para poupar requisições ao servidor.
+     */
     btnSave.addEventListener('click', async () => {
         const nome = inpNome.value.trim();
         const sobrenome = inpSobrenome.value.trim();
@@ -284,20 +372,23 @@ export function renderUsuarios() {
         const cargo = inpCargo.value;
         const permissao = parseInt(inpPermissao.value);
 
-        // Validações
+        // Validação básica
         if (!nome || !sobrenome || !email || !departamento) {
             return alert('Preencha os campos obrigatórios.');
         }
 
+        // Validação de Senha (Lógica Condicional)
         if (editId === null) {
+            // Novo Usuário: Senha Obrigatória
             if (!senha) return alert('Senha é obrigatória para novos usuários.');
             if (senha !== confirma) return alert('As senhas não conferem!');
         }
         if (editId !== null && senha) {
+            // Edição: Senha Opcional (só valida se digitou algo)
             if (senha !== confirma) return alert('A confirmação da nova senha não confere!');
         }
 
-        // Confirmação
+        // UX: Modal de Confirmação antes de cometer a ação
         const actionVerb = editId ? 'editar' : 'criar';
         const userConfirmed = await showConfirmationModal(
             'Confirmar Ação', 
@@ -314,26 +405,33 @@ export function renderUsuarios() {
             cargo_User: cargo,
             nivelAcesso_User: permissao
         };
+        // Só envio a senha se ela foi alterada/criada
         if (senha) dados.senha_User = senha;
 
-        // Feedback
-        const textoOriginal = btnSave.innerHTML; // Salva o HTML com ícone se tiver
+        // Feedback Visual de "Salvando..."
+        const textoOriginal = btnSave.innerHTML; 
         btnSave.disabled = true;
         btnSave.textContent = 'Salvando...';
 
         try {
             if (editId !== null) {
+                // Atualização (PUT)
                 await apiUpdateUsuario(editId, dados);
+                
+                // Otimização: Atualizo o array local manualmente. 
+                // Isso evita ter que buscar todos os usuários do banco de novo (fetchUsuarios).
                 const index = usuarios.findIndex(u => u.id_User === editId);
                 if (index !== -1) usuarios[index] = { ...usuarios[index], ...dados };
                 showAlert('Usuário atualizado com sucesso!');
             } else {
+                // Criação (POST)
                 const resultado = await apiCreateUsuario({ ...dados, senha_User: senha });
+                // Adiciono na lista local
                 usuarios.push({ id_User: resultado.id || '?', ...dados });
                 showAlert('Usuário criado com sucesso!');
             }
             closeModal(); 
-            draw();
+            draw(); // Redesenha a tabela com os novos dados
         } catch (err) {
             console.error(err);
             alert(`Erro na operação: ${err.message}`); 
@@ -343,10 +441,15 @@ export function renderUsuarios() {
         }
     });
 
-    // AÇÕES DA TABELA
+    /**
+     * @listener Delegação de Eventos na Tabela
+     * @description A técnica chave aqui é "Delegação de Eventos".
+     * * Em vez de adicionar um 'click listener' em cada botão de editar/excluir (o que seria pesado
+     * se tivéssemos 1000 usuários), eu adiciono UM único listener no corpo da tabela.
+     * Quando alguém clica, eu verifico se o alvo foi um botão (.closest) e leio a ação desejada.
+     */
     body.addEventListener('click', async e => {
-        // Agora procura .closest('button') para pegar o clique no SVG também
-        const btn = e.target.closest('button');
+        const btn = e.target.closest('button'); // Captura o clique mesmo se for no ícone SVG dentro do botão
         if (!btn) return;
         
         const id = +btn.dataset.id;
@@ -364,6 +467,7 @@ export function renderUsuarios() {
             if (shouldDelete) {
                 try {
                     await apiDeleteUsuario(id);
+                    // Removo do array local e redesenho
                     usuarios = usuarios.filter(u => u.id_User !== id);
                     draw();
                     showAlert('Usuário removido.');
@@ -374,5 +478,6 @@ export function renderUsuarios() {
         }
     });
 
+    // Início: Dispara o carregamento assim que o módulo é montado.
     fetchUsuarios();
 }
