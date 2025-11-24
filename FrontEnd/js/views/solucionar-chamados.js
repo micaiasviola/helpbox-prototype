@@ -1,7 +1,10 @@
-/*
- * =================================================================
- * View: Solucionar Chamados (Design Clean - Apenas Ícones)
- * =================================================================
+/**
+ * @file solucionar-chamados.js
+ * @description View Principal do Painel do Técnico (Central de Soluções).
+ * * Este é o coração do sistema para a equipe de TI. Projetei este módulo focando em
+ * "Actionable UI" (Interface Orientada a Ação). O objetivo é que o técnico bata o olho
+ * e saiba imediatamente qual chamado precisa de atenção (botão Play) e qual está livre (botão Assumir).
+ * @author [Seu Nome/Developer]
  */
 
 import { apiGetChamados, apiGetChamadosTecnico, apiUpdateChamado, apiDeleteChamado } from '../api/chamados.js';
@@ -11,7 +14,17 @@ import { store } from '../store.js';
 import { BaseListView } from '../utils/base-list-view.js';
 import { iniciarDetalhesIA } from './detalhes-IA.js'; 
 
-// --- ÍCONES SVG CLEAN ---
+
+// Necessário para que os botões com onclick="" gerados via Template String funcionem.
+window.iniciarDetalhesIA = iniciarDetalhesIA;
+window.iniciarSolucao = iniciarSolucao;
+
+/**
+ * @constant {Object} ICONS
+ * @description Ícones SVG Clean (Estilo Feather).
+ * * Mantive o padrão de ícones inline para evitar dependências externas pesadas.
+ * O design "clean" ajuda a reduzir a poluição visual, já que esta tela pode ter muitos dados.
+ */
 const ICONS = {
     refresh: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>`,
     trash: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>`,
@@ -27,6 +40,13 @@ const NIVEL_TECNICO = 2;
 const STATUS_EM_ANDAMENTO = 'Em andamento';
 const DEFAULT_PAGE_SIZE = 5;
 
+/**
+ * @class ChamadoManager
+ * @extends BaseListView
+ * @description Gerencia a lista de chamados sob a ótica do Técnico/Admin.
+ * * Estendi a classe 'BaseListView' para reaproveitar lógica de paginação,
+ * mas sobrecarreguei os métodos de renderização pois esta tela tem regras de negócio complexas.
+ */
 class ChamadoManager extends BaseListView {
     
     constructor() {
@@ -35,9 +55,17 @@ class ChamadoManager extends BaseListView {
         this.elements = {};
         this.usuarioLogadoId = store.usuarioLogado?.id || null;
         this.nivelAcesso = store.usuarioLogado?.nivel_acesso || 0;
+        
+        // Torna a instância acessível globalmente (útil para debug ou chamadas inline)
         window.chamadoManager = this;
     }
 
+    /**
+     * @method init
+     * @description Inicialização e Gatekeeper de Segurança.
+     * * Antes de renderizar qualquer coisa, eu verifico se o usuário tem permissão.
+     * Se não for técnico ou admin, bloqueio a tela aqui mesmo.
+     */
     async init() {
         if (!this.usuarioLogadoId || this.nivelAcesso < NIVEL_TECNICO) {
             document.getElementById('view').innerHTML = '<div class="card">Acesso não autorizado.</div>';
@@ -61,6 +89,13 @@ class ChamadoManager extends BaseListView {
         };
     }
 
+    /**
+     * @method renderBaseHTML
+     * @description Injeta a estrutura visual e o CSS Scoped.
+     * * Decisão de Design: Criei classes CSS específicas para os estados dos botões (.play, .take).
+     * Isso fornece feedback visual imediato ao passar o mouse: 
+     * Verde = Trabalhar (Play), Azul = Assumir (UserPlus).
+     */
     renderBaseHTML() {
         const view = document.getElementById('view');
 
@@ -81,15 +116,12 @@ class ChamadoManager extends BaseListView {
                 }
                 .btn-action:hover { background: #eef2f6; color: #1976d2; }
                 
-                /* Cores específicas no Hover para ações importantes */
-                .btn-action.play:hover { background: #e0f2f1; color: #00695c; } /* Verde para Continuar */
-                .btn-action.take:hover { background: #e3f2fd; color: #1565c0; } /* Azul para Assumir */
-                .btn-action.delete:hover { background: #ffebee; color: #d32f2f; } /* Vermelho para Excluir */
+                /* --- SEMÂNTICA DE CORES NO HOVER --- */
+                .btn-action.play:hover { background: #e0f2f1; color: #00695c; } /* Verde: Ação de Prosseguir */
+                .btn-action.take:hover { background: #e3f2fd; color: #1565c0; } /* Azul: Ação de Pegar */
+                .btn-action.delete:hover { background: #ffebee; color: #d32f2f; } /* Vermelho: Perigo */
 
-                /* Botões de Toolbar */
                 .btn-icon-text { display: inline-flex; align-items: center; justify-content: center; gap: 6px; font-weight: 500; }
-                
-                /* Ajustes de Toolbar */
                 .toolbar-title { display: flex; align-items: center; gap: 10px; }
                 .icon-bg { background:#eef2f6; padding:8px; border-radius:8px; color:#4a5568; display: flex; align-items: center; }
             </style>
@@ -175,6 +207,7 @@ class ChamadoManager extends BaseListView {
         }
 
         const rows = chamados.map(c => {
+            // Aqui decidimos qual botão mostrar para cada linha
             const actionButton = this.getActionButton(c);
             
             const nomeTecnico = c.tecNome 
@@ -206,18 +239,27 @@ class ChamadoManager extends BaseListView {
         tbody.innerHTML = rows;
     }
 
-    // =========================================================
-    // 🎨 LÓGICA DE BOTÕES ATUALIZADA (ÍCONES TRANSPARENTES)
-    // =========================================================
+    /**
+     * @method getActionButton
+     * @description O "Cérebro" da UI. Decide qual ação está disponível para o técnico.
+     * * A lógica de botões é complexa, então isolei aqui. Os cenários são:
+     * 1. É meu e está em andamento? -> Ícone Play (Trabalhar).
+     * 2. Está livre? -> Ícone UserPlus (Assumir).
+     * 3. Eu abri o chamado (sou cliente também)? -> Apenas olho (não posso assumir o meu próprio).
+     * 4. Fechado ou de outro técnico? -> Apenas olho (Histórico).
+     * * @param {Object} c Objeto do chamado
+     * @returns {string} HTML do botão
+     */
     getActionButton(c) {
         const meuId = Number(this.usuarioLogadoId);
         const tecId = Number(c.tecResponsavel_Cham);
         const criadorId = Number(c.clienteId_Cham); 
         const isAdmin = this.nivelAcesso === NIVEL_ADMIN;
         
-        // 1. FECHADO
+        // --- CENÁRIO 1: CHAMADO JÁ FINALIZADO ---
         if (c.status_Cham === 'Fechado') {
             if (isAdmin) {
+                // Admin pode ver e excluir histórico
                 return `
                     <button class="btn-action" data-action="view" data-id="${c.id_Cham}" title="Ver Histórico">${ICONS.eye}</button>
                     <button class="btn-action delete" data-action="delete" data-id="${c.id_Cham}" title="Excluir Histórico">${ICONS.trash}</button>
@@ -226,30 +268,32 @@ class ChamadoManager extends BaseListView {
             return `<button class="btn-action" data-action="view" data-id="${c.id_Cham}" title="Ver Histórico">${ICONS.eye}</button>`;
         }
 
-        // 2. EM ANDAMENTO
+        // --- CENÁRIO 2: EM ANDAMENTO (Onde a mágica acontece) ---
         if (c.status_Cham === STATUS_EM_ANDAMENTO) {
-            // É meu chamado (Sou o técnico): Play (Verde no Hover)
+            
+            // 2.1. O chamado já é meu.
+            // Exibo o ícone PLAY (classe .play) para incentivar a resolução.
             if (tecId === meuId) {
                 return `<button class="btn-action play" data-action="continue" data-id="${c.id_Cham}" title="Continuar Resolução">${ICONS.play}</button>`;
             }
             
-            // Sem técnico: Verificar se posso assumir
+            // 2.2. Chamado sem técnico (Livre).
             if (!c.tecResponsavel_Cham) {
-                // Se EU criei, não posso assumir -> Apenas olho
+                // Regra de Negócio: Se EU criei o chamado, não posso assumir (conflito de interesse).
                 if (meuId === criadorId) {
                     return `<button class="btn-action" data-action="view-author" data-id="${c.id_Cham}" title="Seu Chamado (Aguardando Técnico)">${ICONS.eye}</button>`;
                 }
 
-                // Se não sou o criador -> Posso assumir (Azul no Hover)
+                // Se está livre e não é meu -> Posso Assumir (classe .take).
                 return `<button class="btn-action take" data-action="take" data-id="${c.id_Cham}" title="Assumir Chamado">${ICONS.userPlus}</button>`;
             }
 
-            // De outro técnico: Apenas olho
+            // 2.3. Pertence a outro técnico. Apenas observo.
             return `<button class="btn-action" data-action="view" data-id="${c.id_Cham}" title="Ver Detalhes (Atribuído)">${ICONS.eye}</button>`;
         }
         
-        // 3. ABERTO
-        // Se for meu chamado
+        // --- CENÁRIO 3: ABERTO (IA) ---
+        // Se eu sou o autor, vejo o que a IA respondeu.
         if (meuId === criadorId) {
              return `<button class="btn-action" data-action="view-author" data-id="${c.id_Cham}" title="Ver Detalhes">${ICONS.fileText}</button>`;
         }
@@ -266,6 +310,7 @@ class ChamadoManager extends BaseListView {
             const apiParams = [this.currentPage, this.pageSize, termoBusca, filtroStatus];
             
             let response;
+            // Admins veem tudo, Técnicos têm filtros específicos (ex: priorizar os seus)
             if (this.nivelAcesso === NIVEL_ADMIN) {
                 response = await apiGetChamados(...apiParams);
             } else {
@@ -290,6 +335,16 @@ class ChamadoManager extends BaseListView {
         if (this.elements.loading) this.elements.loading.style.display = show ? 'block' : 'none';
     }
 
+    /**
+     * @method drawChamados
+     * @description Ordenação Visual no Cliente.
+     * * Embora o Backend já envie ordenado, eu reforço a ordenação aqui para garantir a consistência visual
+     * imediata, especialmente em casos de atualizações parciais.
+     * * Ordem de Prioridade (Weights):
+     * 0: Meus em andamento (Urgente!)
+     * 1: Livres para pegar (Oportunidade)
+     * 2: Todo o resto (Histórico/Outros)
+     */
     drawChamados() {
         const chamadosOrdenados = [...this.chamadosData].sort((a, b) => {
             const meuId = Number(this.usuarioLogadoId);
@@ -299,9 +354,9 @@ class ChamadoManager extends BaseListView {
                 const tecId = Number(chamado.tecResponsavel_Cham || 0);
                 const criadorId = Number(chamado.clienteId_Cham || 0);
 
-                if (status === 'Em andamento' && tecId === meuId) return 0; // Continuar
-                if (status === 'Em andamento' && tecId === 0 && criadorId !== meuId) return 1; // Assumir
-                return 2; // Olho (Resto)
+                if (status === 'Em andamento' && tecId === meuId) return 0; // Topo
+                if (status === 'Em andamento' && tecId === 0 && criadorId !== meuId) return 1; // Meio
+                return 2; // Fim
             };
 
             const weightA = getWeight(a);
@@ -309,6 +364,7 @@ class ChamadoManager extends BaseListView {
 
             if (weightA !== weightB) return weightA - weightB;
 
+            // Desempate visual: Mostrar Abertos (Novos) antes de Fechados (Velhos) no fim da lista
             if (weightA === 2) {
                 const isAbertoA = a.status_Cham === 'Aberto';
                 const isAbertoB = b.status_Cham === 'Aberto';
@@ -325,11 +381,18 @@ class ChamadoManager extends BaseListView {
         this.renderChamadosTable(chamadosOrdenados);
     }
 
+    /**
+     * @method setupEvents
+     * @description Delegação de Eventos.
+     * * Em vez de adicionar um listener em cada botão (o que pesaria na memória com listas grandes),
+     * eu escuto cliques na tabela inteira (tbody) e detecto se o alvo foi um botão de ação.
+     */
     setupEvents() {
         this.elements.refreshBtn.addEventListener('click', () => this.loadData());
         this.elements.filtroStatus.addEventListener('change', () => { this.currentPage = 1; this.loadData(); });
         
         let timeout;
+        // Debounce na busca para não spamar a API a cada letra digitada
         this.elements.busca.addEventListener('input', () => {
             clearTimeout(timeout);
             timeout = setTimeout(() => { this.currentPage = 1; this.loadData(); }, 300);
@@ -339,7 +402,6 @@ class ChamadoManager extends BaseListView {
     }
 
     async handleTableClick(e) {
-        // Agora buscamos a classe btn-action ou o elemento button
         const btn = e.target.closest('button');
         if (!btn) return; 
 
@@ -351,19 +413,22 @@ class ChamadoManager extends BaseListView {
             switch (action) {
                 case 'view':
                 case 'continue':
+                    // Abre a tela de chat/resolução
                     iniciarSolucao(id); 
                     break;
 
                 case 'view-author':
+                    // Abre apenas a visualização da IA (para chamados que eu mesmo criei)
                     iniciarDetalhesIA(id);
                     break;
 
                 case 'take':
+                    // Ação de Assumir: Atualiza o status e define o técnico como "Eu"
                     await apiUpdateChamado(id, {
                         status_Cham: STATUS_EM_ANDAMENTO, 
                         tecResponsavel_Cham: this.usuarioLogadoId 
                     });
-                    iniciarSolucao(id); 
+                    iniciarSolucao(id); // Já abre a tela para começar a trabalhar
                     break;
                 
                 case 'delete':
