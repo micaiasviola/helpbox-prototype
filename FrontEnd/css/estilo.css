@@ -822,15 +822,6 @@ html, body {
     }
 }
 
-<<<<<<< HEAD
-/* BOTAO DE RADIO */
-#demanda .demanda,
-#usuario .usuario,
-#tempo .tempo {
-    display: block;
-    margin-bottom: 6px; /* opcional, só pra dar espaçamento */
-}
-
 /*BOTAO DE SAIDA*/
 .btn-logout {
     background-color: #bf3737ab;

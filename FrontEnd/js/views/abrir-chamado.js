@@ -73,8 +73,8 @@ class AbrirChamadoView {
                     <label class="tempo"> <input type="radio" name="frequencia" value="Sempre"> Continuadamente </label>
                 </div>
                 <div>
-                    <label class="label">Descrição</label>
-                    <textarea class="textarea" name="descricao" placeholder="Detalhe o que está acontecendo"></textarea>
+                    <label class="label">Descrição<span style="color:red" > * </span></label>
+                    <textarea class="textarea" name="descricao" required placeholder="Detalhe o que está acontecendo"></textarea>
                 </div>
                 <footer class="actions">
                  <button class="btn btn-secondary" type="reset">Limpar</button>
