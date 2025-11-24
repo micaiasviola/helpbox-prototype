@@ -806,8 +806,6 @@ html, body {
     cursor: pointer;
 }
 
-
-
 /* -------- Botões -------- */
 
 .form .actions {
@@ -817,16 +815,12 @@ html, body {
     margin-top: 10px;
 }
 
-
-
 /* -------- Responsividade -------- */
 @media (max-width: 768px) {
     .form-2-colunas {
         grid-template-columns: 1fr;
     }
 }
-
-
 
 <<<<<<< HEAD
 /* BOTAO DE RADIO */
