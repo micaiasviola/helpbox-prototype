@@ -4,7 +4,7 @@
  * * Este é o coração do sistema para a equipe de TI. Projetei este módulo focando em
  * "Actionable UI" (Interface Orientada a Ação). O objetivo é que o técnico bata o olho
  * e saiba imediatamente qual chamado precisa de atenção (botão Play) e qual está livre (botão Assumir).
- * @author [Seu Nome/Developer]
+ * @author [Micaias Viola - Full Stack Developer]
  */
 
 import { apiGetChamados, apiGetChamadosTecnico, apiUpdateChamado, apiDeleteChamado } from '../api/chamados.js';
