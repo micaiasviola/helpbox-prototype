@@ -15,6 +15,7 @@ import { renderAbrirChamado } from './views/abrir-chamado.js';
 import { renderTodosChamados } from './views/solucionar-chamados.js';
 import { renderMeusChamados } from './views/meus-chamados.js';
 import { renderUsuarios } from './views/usuarios.js';
+import { renderConfig } from './views/manual.js';
 // import { renderConfig } from './views/config.js'; // REMOVIDO
 import { iniciarDetalhesIA } from './views/detalhes-IA.js';
 import { iniciarSolucao } from './views/solucionar-chamado-detalhe.js';
@@ -51,6 +52,11 @@ const ROUTE_CONFIG = {
     'chamados': { 
         view: renderMeusChamados,
         menuSelector: '[data-route="chamados"]'
+    },
+    'config': { 
+        view: renderConfig,      
+        minLevel: NIVEL_COMUM,      
+        menuSelector: '[data-route="config"]' 
     },
     // Rotas ocultas ou especiais
     'solucao': { view: iniciarSolucao },

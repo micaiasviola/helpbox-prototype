@@ -52,5 +52,11 @@
             "database": "Helpbox"
         }
     ],
-    "postman.settings.dotenv-detection-notification-visibility": false
+    "postman.settings.dotenv-detection-notification-visibility": false,
+    "appService.zipIgnorePattern": [
+        "node_modules{,/**}",
+        ".vscode{,/**}"
+    ],
+    "appService.defaultWebAppToDeploy": "/subscriptions/3ca0fd9c-79d1-4b2a-8ca3-3db722fccdbb/resourceGroups/Meu-grupo/providers/Microsoft.Web/sites/helpbox-sistema",
+    "appService.deploySubpath": "."
 }

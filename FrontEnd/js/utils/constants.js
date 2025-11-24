@@ -1,9 +1,9 @@
 // Configurações e constantes globais
-const protocol = window.location.protocol; // http:
-const host = window.location.hostname;     // 192.168.x.x
-const port = 3000;                         // Sua porta do backend
 
-export const API_BASE = `${protocol}//${host}:${port}`;
+const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+
+export const API_BASE = isLocalhost ? 'http://localhost:3000' : '';
+
 export const YEAR = new Date().getFullYear();
 
 // Mapeamentos
