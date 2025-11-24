@@ -192,7 +192,7 @@ function atualizarDadosUsuarioNaUI(userData) {
     // Topbar
     const userMeta = document.querySelector('.user-meta');
     if (userMeta) {
-        userMeta.innerHTML = `<strong>${userData.nome || ''}</small>`;
+        userMeta.innerHTML = `<strong>${userData.nome || ''} ${userData.sobrenome}</small>`;
     }
 
     // Dropdown Helper

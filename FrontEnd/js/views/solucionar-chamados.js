@@ -1,6 +1,6 @@
 /*
  * =================================================================
- * View: Solucionar Chamados (Atualizado)
+ * View: Solucionar Chamados (Design Clean - Apenas Ícones)
  * =================================================================
  */
 
@@ -9,11 +9,9 @@ import { renderBadge, getPrioridadeTexto, formatDate, renderDescricaoCurta } fro
 import { iniciarSolucao } from './solucionar-chamado-detalhe.js';
 import { store } from '../store.js';
 import { BaseListView } from '../utils/base-list-view.js';
-
-// 1. IMPORTAR A FUNÇÃO DA TELA DE DETALHES (Verifique se o nome do arquivo está correto)
 import { iniciarDetalhesIA } from './detalhes-IA.js'; 
 
-// --- BIBLIOTECA DE ÍCONES (SVG Clean) ---
+// --- ÍCONES SVG CLEAN ---
 const ICONS = {
     refresh: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>`,
     trash: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>`,
@@ -68,10 +66,7 @@ class ChamadoManager extends BaseListView {
 
         const styles = `
             <style>
-                /* Botões de Ação Específicos */
-                .btn-icon-text { display: inline-flex; align-items: center; justify-content: center; gap: 6px; font-weight: 500; }
-                
-                /* Botão apenas ícone (clean) */
+                /* Botões de Ação Transparentes e Clean */
                 .btn-action {
                     padding: 6px;
                     border-radius: 6px;
@@ -80,9 +75,19 @@ class ChamadoManager extends BaseListView {
                     cursor: pointer;
                     transition: all 0.2s;
                     color: #555;
+                    display: inline-flex;
+                    align-items: center;
+                    justify-content: center;
                 }
                 .btn-action:hover { background: #eef2f6; color: #1976d2; }
-                .btn-action.delete:hover { background: #ffebee; color: #d32f2f; }
+                
+                /* Cores específicas no Hover para ações importantes */
+                .btn-action.play:hover { background: #e0f2f1; color: #00695c; } /* Verde para Continuar */
+                .btn-action.take:hover { background: #e3f2fd; color: #1565c0; } /* Azul para Assumir */
+                .btn-action.delete:hover { background: #ffebee; color: #d32f2f; } /* Vermelho para Excluir */
+
+                /* Botões de Toolbar */
+                .btn-icon-text { display: inline-flex; align-items: center; justify-content: center; gap: 6px; font-weight: 500; }
                 
                 /* Ajustes de Toolbar */
                 .toolbar-title { display: flex; align-items: center; gap: 10px; }
@@ -201,6 +206,9 @@ class ChamadoManager extends BaseListView {
         tbody.innerHTML = rows;
     }
 
+    // =========================================================
+    // 🎨 LÓGICA DE BOTÕES ATUALIZADA (ÍCONES TRANSPARENTES)
+    // =========================================================
     getActionButton(c) {
         const meuId = Number(this.usuarioLogadoId);
         const tecId = Number(c.tecResponsavel_Cham);
@@ -220,33 +228,33 @@ class ChamadoManager extends BaseListView {
 
         // 2. EM ANDAMENTO
         if (c.status_Cham === STATUS_EM_ANDAMENTO) {
-            // É meu chamado (Sou o técnico): Ação principal forte (Play)
+            // É meu chamado (Sou o técnico): Play (Verde no Hover)
             if (tecId === meuId) {
-                return `<button class="btn btn-third small btn-icon-text" data-action="continue" data-id="${c.id_Cham}">${ICONS.play} Continuar</button>`;
+                return `<button class="btn-action play" data-action="continue" data-id="${c.id_Cham}" title="Continuar Resolução">${ICONS.play}</button>`;
             }
             
             // Sem técnico: Verificar se posso assumir
             if (!c.tecResponsavel_Cham) {
-                // 2.1. [CORREÇÃO] Se EU criei o chamado, não posso assumir. E a ação deve ser 'view-author'
+                // Se EU criei, não posso assumir -> Apenas olho
                 if (meuId === criadorId) {
-                    return `<button class="btn-action" data-action="view-author" data-id="${c.id_Cham}" title="Seu Chamado (Ver Detalhes)">${ICONS.eye}</button>`;
+                    return `<button class="btn-action" data-action="view-author" data-id="${c.id_Cham}" title="Seu Chamado (Aguardando Técnico)">${ICONS.eye}</button>`;
                 }
 
-                // Se não sou o criador, posso assumir
-                return `<button class="btn btn-primary small btn-icon-text" data-action="take" data-id="${c.id_Cham}">${ICONS.userPlus} Assumir</button>`;
+                // Se não sou o criador -> Posso assumir (Azul no Hover)
+                return `<button class="btn-action take" data-action="take" data-id="${c.id_Cham}" title="Assumir Chamado">${ICONS.userPlus}</button>`;
             }
 
-            // De outro técnico: Apenas visualizar
-            return `<button class="btn-action" data-action="view" data-id="${c.id_Cham}" title="Ver Detalhes (Atribuído a outro)">${ICONS.eye}</button>`;
+            // De outro técnico: Apenas olho
+            return `<button class="btn-action" data-action="view" data-id="${c.id_Cham}" title="Ver Detalhes (Atribuído)">${ICONS.eye}</button>`;
         }
         
-        // 3. ABERTO (IA)
-        // Se for meu chamado, 'view-author' para ir para os detalhes do cliente
+        // 3. ABERTO
+        // Se for meu chamado
         if (meuId === criadorId) {
-             return `<button class="btn btn-fourth small btn-icon-text" data-action="view-author" data-id="${c.id_Cham}">${ICONS.fileText} Detalhes</button>`;
+             return `<button class="btn-action" data-action="view-author" data-id="${c.id_Cham}" title="Ver Detalhes">${ICONS.fileText}</button>`;
         }
 
-        return `<button class="btn btn-fourth small btn-icon-text" data-action="view" data-id="${c.id_Cham}">${ICONS.fileText} Detalhes</button>`;
+        return `<button class="btn-action" data-action="view" data-id="${c.id_Cham}" title="Ver Detalhes">${ICONS.fileText}</button>`;
     }
 
     async loadData() {
@@ -282,29 +290,31 @@ class ChamadoManager extends BaseListView {
         if (this.elements.loading) this.elements.loading.style.display = show ? 'block' : 'none';
     }
 
-   drawChamados() {
+    drawChamados() {
         const chamadosOrdenados = [...this.chamadosData].sort((a, b) => {
             const meuId = Number(this.usuarioLogadoId);
-            const tecIdA = Number(a.tecResponsavel_Cham);
-            const tecIdB = Number(b.tecResponsavel_Cham);
-            const statusA = a.status_Cham;
-            const statusB = b.status_Cham;
+            
+            const getWeight = (chamado) => {
+                const status = chamado.status_Cham;
+                const tecId = Number(chamado.tecResponsavel_Cham || 0);
+                const criadorId = Number(chamado.clienteId_Cham || 0);
 
-            const getWeight = (status, tecId) => {
-                if (status === 'Em andamento') {
-                    if (tecId === meuId) return 0; 
-                    if (!tecId) return 1;          
-                    return 2;                      
-                }
-                if (status === 'Aberto') return 3;
-                if (status === 'Fechado') return 4;
-                return 9;
+                if (status === 'Em andamento' && tecId === meuId) return 0; // Continuar
+                if (status === 'Em andamento' && tecId === 0 && criadorId !== meuId) return 1; // Assumir
+                return 2; // Olho (Resto)
             };
 
-            const weightA = getWeight(statusA, tecIdA);
-            const weightB = getWeight(statusB, tecIdB);
+            const weightA = getWeight(a);
+            const weightB = getWeight(b);
 
             if (weightA !== weightB) return weightA - weightB;
+
+            if (weightA === 2) {
+                const isAbertoA = a.status_Cham === 'Aberto';
+                const isAbertoB = b.status_Cham === 'Aberto';
+                if (isAbertoA && !isAbertoB) return -1;
+                if (!isAbertoA && isAbertoB) return 1;
+            }
 
             const dateA = new Date(a.dataAbertura_Cham);
             const dateB = new Date(b.dataAbertura_Cham);
@@ -329,6 +339,7 @@ class ChamadoManager extends BaseListView {
     }
 
     async handleTableClick(e) {
+        // Agora buscamos a classe btn-action ou o elemento button
         const btn = e.target.closest('button');
         if (!btn) return; 
 
@@ -343,7 +354,6 @@ class ChamadoManager extends BaseListView {
                     iniciarSolucao(id); 
                     break;
 
-                // 3. NOVA AÇÃO: Quando sou o autor, vou para detalhes (cliente)
                 case 'view-author':
                     iniciarDetalhesIA(id);
                     break;
