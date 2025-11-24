@@ -1,6 +1,15 @@
 import { apiCreateChamado } from '../api/chamados.js';
 import { showConfirmationModal } from '../utils/feedbackmodal.js';
 
+const ICONS = {
+    refresh: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>`,
+    eye: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>`,
+    play: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polygon points="10 8 16 12 10 16 10 8"></polygon></svg>`,
+    user: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:4px; vertical-align:middle;"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>`,
+    briefcase: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:4px; vertical-align:middle;"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path></svg>`,
+    list: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>`
+};
+
 /**
  * Classe responsável por gerenciar a view e a lógica do formulário Abrir Chamado.
  */
@@ -18,14 +27,18 @@ class AbrirChamadoView {
         this.container.innerHTML = this.getTemplate();
         this.attachListeners();
     }
-
+    
     /**
      * Retorna o template HTML do formulário.
      */
     getTemplate() {
         // O HTML do seu formulário é colocado aqui, quase idêntico ao original.
         return `
-            <form class="form" id="${this.formId}">
+                <header>
+                 <h2 style="margin:0; font-size: 1.5rem; color: #2d3748;">Abrir Chamado </h2>
+                 <small style="color:#718096">Preencha as informações para solicitar um novo atendimento</small>
+                </header>
+                <form class="form" id="${this.formId}">
                 <div>
                     <label class="label">Assunto</label>
                     <input class="input" autocomplete="off" name="titulo" required placeholder="Descreva brevemente o problema" />
@@ -63,10 +76,10 @@ class AbrirChamadoView {
                     <label class="label">Descrição</label>
                     <textarea class="textarea" name="descricao" placeholder="Detalhe o que está acontecendo"></textarea>
                 </div>
-                <div class="actions">
-                    <button class="btn" type="submit">Enviar</button>
-                    <button class="btn btn-secondary" type="reset">Limpar</button>
-                </div>
+                <footer class="actions">
+                 <button class="btn btn-secondary" type="reset">Limpar</button>
+                 <button class="btn" type="submit">Enviar</button>
+                </footer>
             </form>
             <div id="${this.alertContainerId}" style="margin-top:10px;"></div>
         `;

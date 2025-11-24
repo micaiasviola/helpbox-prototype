@@ -4,7 +4,7 @@
       justify-content: center;
       align-items: center;
       height: 100vh;
-      background-color: #4A707A;
+      background-color: #1e293b;
       margin: 0;
     }
     .login-container {
@@ -93,4 +93,6 @@
     margin: 5px 0 0 0; /* Pequeno espaço acima */
     color: #888; /* Cor mais clara para a versão */
     font-size: 0.8em;
-        }
+    }
+
+    
