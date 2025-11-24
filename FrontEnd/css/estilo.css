@@ -18,7 +18,8 @@
   padding: 0;
 }
 
-html, body {
+html,
+body {
   height: 100%;
   font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   background: var(--color-bg);
@@ -30,8 +31,10 @@ html, body {
 =============================== */
 .app {
   display: flex;
-  height: 100vh; /* Garante altura total */
-  overflow: hidden; /* Impede scroll na página inteira (apenas dentro das áreas) */
+  height: 100vh;
+  /* Garante altura total */
+  overflow: hidden;
+  /* Impede scroll na página inteira (apenas dentro das áreas) */
 }
 
 /* ===============================
@@ -43,14 +46,16 @@ html, body {
   color: #fff;
   display: flex;
   flex-direction: column;
-  flex-shrink: 0; /* Impede a sidebar de encolher */
+  flex-shrink: 0;
+  /* Impede a sidebar de encolher */
   transition: transform 0.3s ease;
   z-index: 100;
 }
 
 .sidebar-toggle {
-  display: none; /* 🚨 ADICIONE ISSO: Esconde o botão por padrão no Desktop */
-  
+  display: none;
+  /* 🚨 ADICIONE ISSO: Esconde o botão por padrão no Desktop */
+
   /* Mantenha o resto como estava */
   background: none;
   border: none;
@@ -133,13 +138,16 @@ html, body {
    MAIN / TOPBAR
 =============================== */
 .main {
-  flex: 1; /* Ocupa o resto do espaço */
+  flex: 1;
+  /* Ocupa o resto do espaço */
   display: flex;
   flex-direction: column;
   background: var(--color-bg);
-  overflow: hidden; /* Segura o scroll interno */
+  overflow: hidden;
+  /* Segura o scroll interno */
   position: relative;
-  width: 100%; /* Garante largura total disponível */
+  width: 100%;
+  /* Garante largura total disponível */
 }
 
 .topbar {
@@ -148,7 +156,7 @@ html, body {
   display: flex;
   justify-content: end;
   align-items: center;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
   position: sticky;
   top: 0;
   z-index: 5;
@@ -202,7 +210,8 @@ html, body {
 .view {
   flex: 1;
   padding: 20px;
-  overflow-y: auto; /* Scroll vertical na área de conteúdo */
+  overflow-y: auto;
+  /* Scroll vertical na área de conteúdo */
   overflow-x: hidden;
 }
 
@@ -210,69 +219,74 @@ html, body {
 
 /* 1. Torna o container ".user" uma referência de posicionamento */
 .user {
-    position: relative; /* Essencial para o posicionamento do dropdown */
+  position: relative;
+  /* Essencial para o posicionamento do dropdown */
 }
 
 /* 2. O menu dropdown em si (escondido por padrão) */
 .user-dropdown {
-    display: none; /* Começa escondido */
-    position: absolute; /* Permite "flutuar" sobre o conteúdo */
-    top: 110%; /* Posição: um pouco abaixo do cabeçalho */
-    right: 0;
-    background-color: white;
-    border: 1px solid #ddd;
-    border-radius: 8px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-    width: 240px;
-    z-index: 1000; /* Garante que fique na frente de outros elementos */
+  display: none;
+  /* Começa escondido */
+  position: absolute;
+  /* Permite "flutuar" sobre o conteúdo */
+  top: 110%;
+  /* Posição: um pouco abaixo do cabeçalho */
+  right: 0;
+  background-color: white;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  width: 240px;
+  z-index: 1000;
+  /* Garante que fique na frente de outros elementos */
 }
 
 /* 3. Classe "show" que será adicionada via JS para mostrar o menu */
 .user-dropdown.show {
-    display: block;
+  display: block;
 }
 
 /* 4. Estilos internos do dropdown para organização */
 .user-dropdown .dropdown-header {
-    padding: 15px;
-    border-bottom: 1px solid #eee;
+  padding: 15px;
+  border-bottom: 1px solid #eee;
 }
 
 .user-dropdown .dropdown-header strong {
-    display: block;
-    font-size: 1em;
-    color: #333;
+  display: block;
+  font-size: 1em;
+  color: #333;
 }
 
 .user-dropdown .dropdown-header small {
-    font-size: 0.8em;
-    color: #777;
+  font-size: 0.8em;
+  color: #777;
 }
 
 .user-dropdown .dropdown-list {
-    list-style: none;
-    padding: 10px 0;
-    margin: 0;
+  list-style: none;
+  padding: 10px 0;
+  margin: 0;
 }
 
 .user-dropdown .dropdown-list li {
-    padding: 8px 15px;
-    font-size: 0.9em;
-    color: #555;
+  padding: 8px 15px;
+  font-size: 0.9em;
+  color: #555;
 }
 
 .user-dropdown .dropdown-footer {
-    padding: 10px 15px;
-    background-color: #f9f9f9;
-    border-top: 1px solid #eee;
-    text-align: center;
+  padding: 10px 15px;
+  background-color: #f9f9f9;
+  border-top: 1px solid #eee;
+  text-align: center;
 }
 
 .user-dropdown .dropdown-footer a {
-    color: #007BFF;
-    text-decoration: none;
-    font-size: 0.9em;
-    font-weight: bold;
+  color: #007BFF;
+  text-decoration: none;
+  font-size: 0.9em;
+  font-weight: bold;
 }
 
 /* ===============================
@@ -282,7 +296,7 @@ html, body {
   background: #fff;
   border-radius: var(--radius);
   padding: 20px;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
   transition: transform var(--transition);
 }
 
@@ -327,22 +341,22 @@ html, body {
   background: #c0392b;
 }
 
-.btn-third{
-    background: #007b8a;
-    color: #fff;
+.btn-third {
+  background: #007b8a;
+  color: #fff;
 }
 
 .btn-third:hover {
-    background: #11474b;
+  background: #11474b;
 }
 
-.btn-fourth{
-    background: #b78a00;
-    color: #fff;
+.btn-fourth {
+  background: #b78a00;
+  color: #fff;
 }
 
 .btn-fourth:hover {
-    background: #8c6b00;
+  background: #8c6b00;
 }
 
 .btn-ghost {
@@ -384,18 +398,21 @@ html, body {
 /* Container Responsivo para a Tabela */
 .table-responsive {
   width: 100%;
-  overflow-x: auto; /* Barra de rolagem horizontal AUTOMÁTICA */
+  overflow-x: auto;
+  /* Barra de rolagem horizontal AUTOMÁTICA */
   -webkit-overflow-scrolling: touch;
   border: 1px solid #eee;
   border-radius: var(--radius);
-  background: #fff; /* Garante fundo branco no scroll */
+  background: #fff;
+  /* Garante fundo branco no scroll */
   margin-bottom: 15px;
 }
 
 /* Garante que a tabela mantenha o tamanho mínimo para ser legível */
 .table {
   width: 100%;
-  min-width: 800px; /* Força a tabela a ter largura mínima, ativando o scroll */
+  min-width: 800px;
+  /* Força a tabela a ter largura mínima, ativando o scroll */
   border-collapse: collapse;
 }
 
@@ -403,10 +420,10 @@ html, body {
 .table td {
   padding: 12px 15px;
   border-bottom: 1px solid #eee;
-  
+
   /* Centralização e Alinhamento Vertical */
-  text-align: center; 
-  vertical-align: middle; 
+  text-align: center;
+  vertical-align: middle;
 }
 
 .table th {
@@ -423,48 +440,52 @@ html, body {
 */
 .table th:nth-child(1),
 .table td:nth-child(1) {
-    width: 50px;
-    text-align: center;
+  width: 50px;
+  text-align: center;
 }
 
 /* 2. Coluna de DESCRIÇÃO (2ª coluna) - A que estava quebrando */
 .col-descricao {
-    text-align: left;
-    max-width: 300px;       /* Limite de largura */
-    white-space: nowrap;    /* Não quebra linha */
-    overflow: hidden;       /* Esconde o excesso */
-    text-overflow: ellipsis; /* Coloca "..." */
-    
-    /* Removemos o 'cursor: help' aqui. 
+  text-align: left;
+  max-width: 300px;
+  /* Limite de largura */
+  white-space: nowrap;
+  /* Não quebra linha */
+  overflow: hidden;
+  /* Esconde o excesso */
+  text-overflow: ellipsis;
+  /* Coloca "..." */
+
+  /* Removemos o 'cursor: help' aqui. 
        O cursor de "mãozinha" (pointer) já está no inline style do JS */
 }
 
 /* Opcional: Mostrar texto completo ao passar o mouse (Tooltip simples) */
 .table td:nth-child(2):hover {
-    position: relative; 
-    /* Nota: Para tooltips complexos, remova o overflow no hover ou use title="" */
+  position: relative;
+  /* Nota: Para tooltips complexos, remova o overflow no hover ou use title="" */
 }
 
 /* 3. Coluna de STATUS (3ª coluna) - Ajuste para não ficar espremida */
 .table th:nth-child(3),
 .table td:nth-child(3) {
-    width: 120px;
-    text-align: center;
+  width: 120px;
+  text-align: center;
 }
 
 /* Melhoria visual nos botões dentro da tabela */
 .table .btn {
-    padding: 6px 12px;
-    font-size: 0.9rem;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 5px;
+  padding: 6px 12px;
+  font-size: 0.9rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
 }
 
 /* Efeito hover nas linhas */
 .table tbody tr:hover {
-    background-color: #f8f9fa;
+  background-color: #f8f9fa;
 }
 
 .badge {
@@ -575,14 +596,14 @@ html, body {
 }
 
 .pagination-ellipsis {
-    /* Mantenha o seu padding e cor */
-    padding: 6px 4px;
-    color: var(--color-muted);
-    font-size: 14px;
-    
-    /* 🚨 NOVO: Garante que as reticências fiquem na mesma linha e alinhadas */
-    display: inline-flex; 
-    align-items: center;
+  /* Mantenha o seu padding e cor */
+  padding: 6px 4px;
+  color: var(--color-muted);
+  font-size: 14px;
+
+  /* 🚨 NOVO: Garante que as reticências fiquem na mesma linha e alinhadas */
+  display: inline-flex;
+  align-items: center;
 }
 
 
@@ -593,8 +614,8 @@ html, body {
 
   #logoutBtn2 {
     display: none;
-}
-  
+  }
+
   /* 1. Layout em Coluna */
   .app {
     flex-direction: column;
@@ -605,9 +626,11 @@ html, body {
   /* 2. Sidebar vira o Cabeçalho Azul no Topo */
   .sidebar {
     width: 100%;
-    height: auto; /* Cresce conforme o menu abre */
+    height: auto;
+    /* Cresce conforme o menu abre */
     position: relative;
-    z-index: 1000; /* Fica acima de tudo */
+    z-index: 1000;
+    /* Fica acima de tudo */
     padding: 0;
     flex-shrink: 0;
   }
@@ -616,7 +639,8 @@ html, body {
   .brand {
     width: 100%;
     display: flex;
-    justify-content: space-between; /* Logo na esq, Botão na dir */
+    justify-content: space-between;
+    /* Logo na esq, Botão na dir */
     align-items: center;
     padding: 10px 20px;
     border-bottom: none;
@@ -625,8 +649,10 @@ html, body {
 
   /* Garante que o botão Hambúrguer apareça e seja clicável */
   .sidebar-toggle {
-    display: block !important; /* Força visibilidade */
-    font-size: 32px; /* Tamanho bom para dedo */
+    display: block !important;
+    /* Força visibilidade */
+    font-size: 32px;
+    /* Tamanho bom para dedo */
     color: #fff;
     background: transparent;
     border: none;
@@ -637,10 +663,10 @@ html, body {
 
   /* 4. Menu (Links) - Escondido por padrão */
   .menu {
-    display: none; 
+    display: none;
     width: 100%;
     background-color: var(--color-sidebar);
-    border-top: 1px solid rgba(255,255,255,0.1);
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
     padding-bottom: 10px;
   }
 
@@ -659,12 +685,14 @@ html, body {
   /* 6. Conteúdo Principal */
   .main {
     width: 100%;
-    flex: 1; /* Ocupa o resto da altura */
+    flex: 1;
+    /* Ocupa o resto da altura */
     margin: 0;
     border-radius: 0;
     display: flex;
     flex-direction: column;
-    overflow: hidden; /* Controla o scroll interno */
+    overflow: hidden;
+    /* Controla o scroll interno */
   }
 
   /* 7. Topbar (Barra Branca) - Fica abaixo da Sidebar */
@@ -672,14 +700,17 @@ html, body {
     padding: 10px 15px;
     height: auto;
     gap: 10px;
-    flex-wrap: wrap; /* Permite que itens quebrem linha se necessário */
+    flex-wrap: wrap;
+    /* Permite que itens quebrem linha se necessário */
   }
 
   /* Ajuste da Busca */
   .search {
-    flex-grow: 1; /* Busca ocupa espaço disponível */
-    min-width: 200px; 
+    flex-grow: 1;
+    /* Busca ocupa espaço disponível */
+    min-width: 200px;
   }
+
   .search input {
     width: 100%;
     max-width: 100%;
@@ -689,51 +720,55 @@ html, body {
   .top-actions {
     gap: 15px;
   }
-  
+
   /* Ajuste da Tabela/View */
   .view {
     padding: 10px;
-    overflow-y: auto; /* Scroll vertical aqui */
-    flex: 1; /* Ocupa o espaço restante */
+    overflow-y: auto;
+    /* Scroll vertical aqui */
+    flex: 1;
+    /* Ocupa o espaço restante */
   }
 }
 
-#demanda, #usuario, #tempo {
-    display: flex;
-    flex-direction: column;
+#demanda,
+#usuario,
+#tempo {
+  display: flex;
+  flex-direction: column;
 }
 
 /* -------- Abrir Chamado – Layout Geral -------- */
 
 .form {
-    display: flex;
-    flex-direction: column;
-    gap: 26px;
-    background: ##f8f9fb;
-    padding: 26px;
-    border-radius: 12px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.06);
-    margin-top: 20px;
-    width: 100%;
-    border: 1px solid #dcdcdc
+  display: flex;
+  flex-direction: column;
+  gap: 26px;
+  background: #f8f9fb;
+  padding: 26px;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+  margin-top: 20px;
+  width: 100%;
+  border: 1px solid #dcdcdc;
 }
 
 
 /* Labels */
 .form label.label,
 .form legend.label {
-    font-size: 1rem;
-    font-weight: 500;
-    margin-bottom: 8px;
-    color: #2c2c2c;
-    letter-spacing: 0.2px;
+  font-size: 1rem;
+  font-weight: 500;
+  margin-bottom: 8px;
+  color: #2c2c2c;
+  letter-spacing: 0.2px;
 }
 
-.form label + input,
-.form label + select,
-.form label + textarea {
-    margin-top: 6px;
-    display: block;
+.form label+input,
+.form label+select,
+.form label+textarea {
+  margin-top: 6px;
+  display: block;
 }
 
 
@@ -742,111 +777,103 @@ html, body {
 .form input[type="date"],
 .form select,
 .form textarea {
-    width: 100%;
-    padding: 11px 14px;
-    border: 1px solid #d1d1d1;
-    border-radius: 8px;
-    background: #fafafa;
-    font-size: 0.95rem;
-    transition: all .2s ease;
+  width: 100%;
+  padding: 11px 14px;
+  border: 1px solid #d1d1d1;
+  border-radius: 8px;
+  background: #fafafa;
+  font-size: 0.95rem;
+  transition: all .2s ease;
 }
 
 .form input:focus,
 .form select:focus,
 .form textarea:focus {
-    border-color: #6e92ff;
-    background: #fff;
-    box-shadow: 0 0 0 3px rgba(125,160,255,0.25);
+  border-color: #6e92ff;
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(125, 160, 255, 0.25);
 }
 
 /* Campo de descrição */
 .form textarea {
-    resize: vertical;
-    min-height: 130px;
+  resize: vertical;
+  min-height: 130px;
 }
 
 /* Grid de Categoria e Data */
 .form-2-colunas {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 20px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
 }
 
 /* -------- Fieldsets (radios) -------- */
 
 .form fieldset {
-    border: 1px solid #e7e7e7;
-    border-radius: 10px;
-    padding: 14px 18px;
-    margin: 0;
-    background: #fafafa;
+  border: 1px solid #e7e7e7;
+  border-radius: 10px;
+  padding: 14px 18px;
+  margin: 0;
+  background: #fafafa;
 }
 
 /* Legenda do fieldset */
 .form fieldset legend {
-    padding: 0 6px;
-    font-size: 1rem;
-    font-weight: 600;
-    color: #444;
+  padding: 0 6px;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #444;
 }
 
 /* Itens empilhados */
 .form fieldset label {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin-top: 8px;
-    font-size: 0.95rem;
-    cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+  font-size: 0.95rem;
+  cursor: pointer;
 }
 
 /* Botões de rádio */
-.form  input[type="radio"] {
-    transform: scale(1.2);
-    cursor: pointer;
+.form input[type="radio"] {
+  transform: scale(1.2);
+  cursor: pointer;
 }
 
 /* -------- Botões -------- */
 
 .form .actions {
-    display: flex;
-    justify-content: flex-end;
-    gap: 10px;
-    margin-top: 10px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 10px;
 }
 
 /* -------- Responsividade -------- */
 @media (max-width: 768px) {
-    .form-2-colunas {
-        grid-template-columns: 1fr;
-    }
+  .form-2-colunas {
+    grid-template-columns: 1fr;
+  }
 }
 
-<<<<<<< HEAD
 /* BOTAO DE RADIO */
 #demanda .demanda,
 #usuario .usuario,
 #tempo .tempo {
-    display: block;
-    margin-bottom: 6px; /* opcional, só pra dar espaçamento */
+  display: block;
+  margin-bottom: 6px;
+  /* opcional, só pra dar espaçamento */
 }
 
 /*BOTAO DE SAIDA*/
 .btn-logout {
-    background-color: #bf3737ab;
-    color: white;
-    border: none;;
-    border-radius: 10px;
-    padding: 8px 12px;
-    cursor: pointer;
-    font-size: 14px;
-    }
-=======
-/* Animação suave */
-@keyframes slideDown {
-    from { opacity: 0; transform: translateY(-10px); }
-    to { opacity: 1; transform: translateY(0); }
+  background-color: #bf3737ab;
+  color: white;
+  border: none;
+  ;
+  border-radius: 10px;
+  padding: 8px 12px;
+  cursor: pointer;
+  font-size: 14px;
 }
-
->>>>>>> origin/main
-
