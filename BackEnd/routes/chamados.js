@@ -1,3 +1,13 @@
+/**
+ * @file routes/chamados.js
+ * @description API de Gerenciamento de Tickets.
+ * * Este é o arquivo mais complexo do backend. Ele gerencia todo o ciclo de vida do chamado:
+ * Abertura (com IA), Listagem (com filtros avançados), Atualização (Técnico) e Fechamento (Cliente).
+ * * Destaque: Implementei uma ordenação personalizada no SQL (CASE WHEN) para garantir que
+ * cada usuário veja primeiro o que é mais relevante para ele.
+ * @author [Micaias Viola - Full Stack Developer]
+ */
+
 const express = require('express');
 const router = express.Router();
 const { getPool, sql } = require('../db.js');
@@ -5,11 +15,19 @@ const { gerarRespostaIA } = require('../services/iaService.js');
 const verificarAdm = require('../middlewares/verificarADM.js');
 
 // ====================================================================
-// 🛠️ FUNÇÕES AUXILIARES (REUTILIZÁVEIS)
+// FUNÇÕES AUXILIARES (REUTILIZÁVEIS)
 // ====================================================================
 
 /**
- * Função Central para buscar listas de chamados paginadas.
+ * @function fetchChamadosList
+ * @description Engine de Busca Centralizada.
+ * * Criei esta função para eliminar a duplicação de código entre as rotas /meus, /tecnico e / (todos).
+ * Ela encapsula a lógica de paginação (OFFSET/FETCH), filtros dinâmicos e a ordenação complexa.
+ * * @param {Object} req Objeto de requisição do Express.
+ * @param {Object} res Objeto de resposta do Express.
+ * @param {string} customWhere Cláusula WHERE específica da rota (ex: só meus chamados).
+ * @param {string} customOrder Cláusula ORDER BY específica (opcional).
+ * @param {Object} params Parâmetros adicionais para o SQL (ex: usuarioId).
  */
 async function fetchChamadosList(req, res, customWhere = '', customOrder = '', params = {}) {
     const page = parseInt(req.query.page) || 1;
@@ -21,15 +39,17 @@ async function fetchChamadosList(req, res, customWhere = '', customOrder = '', p
 
     const searchTerm = (req.query.q || '').trim();
     const statusFilter = req.query.status || '';
+    
+    // Detecção inteligente: se o usuário digitou números, ele provavelmente quer buscar por ID
     const isNumericInput = /^\d+$/.test(searchTerm);
 
     let whereClause = `1 = 1`;
     
-    // Filtros
+    // Filtros Dinâmicos
     if (customWhere) whereClause += ` AND ${customWhere}`;
     if (statusFilter) whereClause += ` AND C.status_Cham = @statusFilter`;
     
-    // Busca Inteligente
+    // Busca Inteligente (ID ou Texto)
     if (searchTerm) {
         if (isNumericInput) {
             whereClause += ` AND (
@@ -42,8 +62,15 @@ async function fetchChamadosList(req, res, customWhere = '', customOrder = '', p
         }
     }
 
-    // 🚨 ORDENAÇÃO CORRIGIDA (SQL SERVER) 🚨
-    // A lógica aqui deve ser IDÊNTICA à do Javascript do Frontend
+    /**
+     * LÓGICA DE ORDENAÇÃO 
+     * * O SQL Server precisa ordenar os resultados ANTES de paginar.
+     * * A regra é: 
+     * 1. Meus chamados em andamento (Urgente).
+     * 2. Chamados livres para pegar (Oportunidade).
+     * 3. Resto (Histórico).
+     * * Isso garante que, mesmo na página 1, o técnico veja o que importa.
+     */
     const defaultOrder = `
         ORDER BY 
         CASE 
@@ -52,18 +79,17 @@ async function fetchChamadosList(req, res, customWhere = '', customOrder = '', p
             WHEN C.status_Cham = 'Em andamento' AND C.tecResponsavel_Cham = @usuarioId THEN 0 
             
             -- 2. ASSUMIR (Peso 1)
-            -- 'Em andamento' E (Sem técnico) E (Eu NÃO sou o criador)
+            -- 'Em andamento' E (Sem técnico) E (Eu NÃO sou o criador - regra de conflito de interesse)
             WHEN C.status_Cham = 'Em andamento' 
                  AND (C.tecResponsavel_Cham IS NULL OR C.tecResponsavel_Cham = 0)
                  AND C.clienteId_Cham <> @usuarioId THEN 1
             
             -- 3. OLHO / RESTO (Peso 2)
-            -- Inclui: Fechados, Abertos, De outros técnicos, e os MEUS que estão sem técnico
             ELSE 2 
         END ASC,
         
-        -- DESEMPATE DO GRUPO "OLHO" (Opcional)
-        -- Queremos ver 'Abertos' antes de 'Fechados' dentro do grupo 3
+        -- DESEMPATE DO GRUPO "OLHO"
+        -- Mostra 'Aberto' (Novos) antes de 'Fechado'
         CASE WHEN C.status_Cham = 'Aberto' THEN 0 ELSE 1 END ASC,
 
         -- FINALMENTE: Data mais recente
@@ -79,21 +105,19 @@ async function fetchChamadosList(req, res, customWhere = '', customOrder = '', p
             .input('pageSize', sql.Int, pageSize)
             .input('statusFilter', sql.NVarChar, statusFilter)
             .input('searchTerm', sql.NVarChar, `%${searchTerm}%`)
-            // Importante: Passamos o usuário logado para o SQL conseguir calcular a ordem
             .input('usuarioId', sql.Int, usuarioLogadoId);
 
         if (isNumericInput) {
             request.input('searchIdPattern', sql.NVarChar, `${searchTerm}%`);
         }
 
-        // Adiciona params extras se houver
         for (const [key, value] of Object.entries(params)) {
-             // Evita erro de duplicidade se usuarioId já foi passado acima
             if (key !== 'usuarioId') {
                 request.input(key, sql.Int, value);
             }
         }
 
+        // Executa duas queries: Uma para os dados paginados e outra para o total (para a paginação do front)
         const query = `
             SELECT C.*, U.nome_User, U.sobrenome_User, 
                    TEC.nome_User as tecNome, TEC.sobrenome_User as tecSobrenome
@@ -125,29 +149,29 @@ async function fetchChamadosList(req, res, customWhere = '', customOrder = '', p
 }
 
 // ====================================================================
-// 🚦 ROTAS DE LISTAGEM
+// ROTAS DE LISTAGEM
 // ====================================================================
 
-// 1. MEUS CHAMADOS
+// GET /meus: Lista chamados relacionados ao usuário logado.
+// Suporta filtro 'tipo' para distinguir "Criados por mim" vs "Atribuídos a mim".
 router.get('/meus', async (req, res) => {
     const usuarioId = req.session?.usuario?.id;
-    const tipoFilter = req.query.tipo || ''; // 'criado' ou 'atribuido'
+    const tipoFilter = req.query.tipo || ''; 
 
     if (!usuarioId) return res.status(401).json({ error: 'Não autenticado' });
 
     let where = '';
     
-    // Define o Escopo (WHERE)
     if (tipoFilter === 'criado') {
         where = `C.clienteId_Cham = @usuarioId`;
     } else if (tipoFilter === 'atribuido') {
         where = `C.tecResponsavel_Cham = @usuarioId`;
     } else {
-        // Padrão: Vejo o que abri OU o que resolvo
+        // Default: Mostra tudo que tem a ver comigo
         where = `(C.tecResponsavel_Cham = @usuarioId OR C.clienteId_Cham = @usuarioId)`;
     }
 
-    // Ordenação por Ação (Action Order)
+    // Ordenação Específica para "Meus Chamados" (Prioriza o que eu preciso resolver)
     const order = `
         ORDER BY 
         CASE WHEN C.status_Cham = 'Em andamento' AND C.tecResponsavel_Cham = @usuarioId THEN 0 ELSE 1 END ASC,
@@ -158,28 +182,25 @@ router.get('/meus', async (req, res) => {
     await fetchChamadosList(req, res, where, order, { usuarioId });
 });
 
-// 2. CHAMADOS TÉCNICOS (LIVRES)
+// GET /tecnico: Fila de Chamados Livres (Pool).
+// Apenas técnicos podem ver. Mostra o que está "sobrando" para ser pego.
 router.get('/tecnico', async (req, res) => {
     const nivel = req.session?.usuario?.nivel_acesso;
-    const usuarioId = req.session?.usuario?.id; // <--- Pegar o ID aqui
+    const usuarioId = req.session?.usuario?.id;
 
     if (nivel < 2) return res.status(403).json({ error: 'Acesso negado.' });
 
-    // Nota: O filtro WHERE já garante que só vem sem técnico, 
-    // mas a ORDENAÇÃO precisa saber quem é você para jogar os seus para o final da lista.
     const where = `C.tecResponsavel_Cham IS NULL AND C.status_Cham = 'Em andamento'`;
     
-    // Podemos deixar vazio para usar o 'defaultOrder' inteligente que criamos acima
-    // OU forçar uma ordem específica se preferir. 
-    // Vamos usar vazio para aproveitar a lógica inteligente (Meus criados vão pro fim).
+    // Uso a ordenação padrão (defaultOrder) que já trata a lógica de "Assumir"
     await fetchChamadosList(req, res, where, '', { usuarioId });
 });
 
-// 3. TODOS OS CHAMADOS (ADMIN)
+// GET /: Visão Administrativa (Ver Tudo).
+// Rota protegida pelo middleware verificarAdm.
 router.get('/', verificarAdm, async (req, res) => {
     const usuarioId = req.session?.usuario?.id;
     
-    // Mesma lógica de ordenação de ação que em /meus
     const order = `
         ORDER BY 
         CASE WHEN C.status_Cham = 'Em andamento' AND C.tecResponsavel_Cham = @usuarioId THEN 0 ELSE 1 END ASC,
@@ -190,7 +211,7 @@ router.get('/', verificarAdm, async (req, res) => {
 });
 
 // ====================================================================
-// 🔍 ROTA DE DETALHE
+// ROTA DE DETALHE
 // ====================================================================
 
 router.get('/:id', async (req, res) => {
@@ -220,9 +241,11 @@ router.get('/:id', async (req, res) => {
 });
 
 // ====================================================================
-// 📝 ROTA POST (CRIAR) - BLINDADA CONTRA ERROS COMUNS
+// ROTA POST (CRIAR)
 // ====================================================================
 
+// POST /: Abertura de Chamado.
+// Integração com IA para classificação automática e sugestão de solução.
 router.post('/', async (req, res) => {
     try {
         const { titulo, categoria, descricao, status, impacto, usuarios, frequencia } = req.body;
@@ -231,13 +254,14 @@ router.post('/', async (req, res) => {
         const dataAbertura = new Date(req.body.dataAbertura || new Date());
         const dataProblema = req.body.dataProblema ? new Date(req.body.dataProblema) : dataAbertura;
 
-        // 1. CHAMA A IA
+        // 1. Inteligência Artificial
+        // Antes de salvar, consulto a IA para obter uma prioridade sugerida e uma possível solução.
         const respostaIA = await gerarRespostaIA(categoria, descricao, titulo, frequencia, impacto, usuarios);
         
-        // Tratamento e corte de texto (Solução para o erro String truncated)
+        // Tratamento de limite de texto (Segurança contra Buffer Overflow no banco)
         let solucaoFinal = respostaIA.solucao || "Sem sugestão da IA."; 
         if (solucaoFinal.length > 3500) {
-            solucaoFinal = solucaoFinal.substring(0, 3500) + '... [Texto cortado por limite de tamanho]';
+            solucaoFinal = solucaoFinal.substring(0, 3500) + '... [Texto cortado]';
         }
 
         const prioridadeFinal = respostaIA.prioridade || 'M';
@@ -246,7 +270,7 @@ router.post('/', async (req, res) => {
 
         const pool = await getPool();
         
-        // Solução para o erro de Triggers (OUTPUT INTO)
+        // Uso OUTPUT INSERTED para garantir que recebo o ID gerado, mesmo em alta concorrência.
         const result = await pool.request()
             .input('clienteId', sql.Int, clienteId)
             .input('titulo', sql.VarChar(255), titulo)
@@ -261,7 +285,6 @@ router.post('/', async (req, res) => {
             .input('prioridade', sql.Char(1), prioridadeFinal)
             .input('solucaoIA', sql.NVarChar(sql.MAX), solucaoFinal)
             .query(`
-                -- Tabela temporária para receber o ID gerado (contorna problema de Triggers)
                 DECLARE @OutputTbl TABLE (id_Cham INT);
 
                 INSERT INTO Chamado (
@@ -274,7 +297,6 @@ router.post('/', async (req, res) => {
                     @dataProblema, @impacto, @usuarios, @frequencia, @prioridade, @solucaoIA
                 );
 
-                -- Seleciona o registro completo
                 SELECT * FROM Chamado 
                 WHERE id_Cham = (SELECT TOP 1 id_Cham FROM @OutputTbl);
             `);
@@ -282,7 +304,7 @@ router.post('/', async (req, res) => {
         if (result.recordset && result.recordset.length > 0) {
             res.status(201).json(result.recordset[0]);
         } else {
-            // Fallback de segurança se a tabela temporária falhar (raro)
+            // Fallback de segurança raro
             const fallback = await pool.request().query('SELECT TOP 1 * FROM Chamado ORDER BY id_Cham DESC');
             if(fallback.recordset.length > 0) {
                  res.status(201).json(fallback.recordset[0]);
@@ -293,15 +315,16 @@ router.post('/', async (req, res) => {
 
     } catch (error) {
         console.error('Erro POST Backend:', error);
-        // Retorna JSON válido com o erro para o frontend ler
         res.status(500).json({ error: 'Erro no servidor: ' + error.message });
     }
 });
 
 // ====================================================================
-// 🔄 ROTA PUT (ATUALIZAR GERAL E AÇÕES)
+// ROTA PUT (ATUALIZAR GERAL)
 // ====================================================================
 
+// PUT /:id : Atualização Genérica.
+// Construo a query dinamicamente para atualizar apenas os campos enviados.
 router.put('/:id', async (req, res) => {
     try {
         const id = parseInt(req.params.id);
@@ -312,7 +335,6 @@ router.put('/:id', async (req, res) => {
         
         let updates = [];
 
-        // Construção dinâmica da query (evita inputs desnecessários)
         if (status_Cham) {
             updates.push("status_Cham = @status");
             request.input('status', sql.VarChar(20), status_Cham);
@@ -345,9 +367,9 @@ router.put('/:id', async (req, res) => {
     }
 });
 
-// 🚀 ROTAS DE AÇÃO ESPECÍFICAS (ATALHOS)
+// ROTAS DE FLUXO DE TRABALHO (Workflow)
 
-// Escalar (Muda status e remove técnico)
+// PUT /escalar: Transição de Aberto -> Em Andamento (Envia para pool de técnicos)
 router.put('/escalar/:id', async (req, res) => {
     try {
         const id = parseInt(req.params.id);
@@ -362,7 +384,8 @@ router.put('/escalar/:id', async (req, res) => {
     } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// Fechar (Cliente)
+// PUT /fechar: Cliente valida e fecha o chamado.
+// Validação de Segurança: Garanto que apenas o dono do chamado pode fechar.
 router.put('/fechar/:id', async (req, res) => {
     try {
         const id = parseInt(req.params.id);
@@ -383,7 +406,8 @@ router.put('/fechar/:id', async (req, res) => {
     } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// Reabrir
+// PUT /reabrir: Cliente não aceitou a solução.
+// Reseta o status para 'Em andamento' e remove o técnico para que outro possa pegar.
 router.put('/reabrir/:id', async (req, res) => {
     try {
         const id = parseInt(req.params.id);
@@ -394,7 +418,7 @@ router.put('/reabrir/:id', async (req, res) => {
     } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// Concordar
+// PUT /concordar: Feedback positivo (NPS).
 router.put('/concordar/:id', async (req, res) => {
     try {
         const id = parseInt(req.params.id);
@@ -406,7 +430,7 @@ router.put('/concordar/:id', async (req, res) => {
 });
 
 // ====================================================================
-// 🗑️ ROTA DELETE
+// ROTA DELETE (ADMIN)
 // ====================================================================
 
 router.delete('/:id', verificarAdm, async (req, res) => {
@@ -414,6 +438,7 @@ router.delete('/:id', verificarAdm, async (req, res) => {
     try {
         const pool = await getPool();
         
+        // Regra de Negócio: Apenas chamados 'Fechado' podem ser excluídos para manter histórico de auditoria.
         const check = await pool.request().input('id', sql.Int, id).query('SELECT status_Cham FROM Chamado WHERE id_Cham = @id');
         if (!check.recordset[0]) return res.status(404).json({ error: 'Não encontrado.' });
         if (check.recordset[0].status_Cham !== 'Fechado') return res.status(400).json({ error: 'Apenas chamados fechados podem ser excluídos.' });

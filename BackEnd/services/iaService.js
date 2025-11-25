@@ -80,7 +80,7 @@ async function gerarRespostaIA(categoria, descricao, titulo, frequencia, impacto
                 }
             }
             
-            // 🚨 LIMPEZA EXTRA DE SEGURANÇA:
+            // LIMPEZA EXTRA DE SEGURANÇA:
             // Se mesmo com o prompt a IA teimar em escrever "Cálculo de Prioridade", a gente remove via código.
             solucaoDetectada = solucaoDetectada
                 .replace(/Cálculo de Prioridade:[\s\S]*?(Solução Sugerida:|$)/gi, '$1') // Remove bloco de cálculo

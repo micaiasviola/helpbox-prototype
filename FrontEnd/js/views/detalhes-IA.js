@@ -1,12 +1,27 @@
+/**
+ * @file detalhes-IA.js
+ * @description View de Detalhes do Cliente (Foco em Autoatendimento).
+ * * Diferente da tela do técnico, aqui o foco é a simplicidade e a validação.
+ * * Eu desenhei este módulo para ser o ponto de contato principal do cliente com a IA.
+ * O objetivo é tentar resolver o chamado aqui mesmo ("Shift-Left"), antes que ele chegue a um humano.
+ * @author [Micaías Viola - Full Stack Developer]
+ */
+
 import {
     apiEncaminharChamado, apiGetChamadoById, apiFecharChamado,
     apiReabrirChamado, apiConcordarSolucao
 } from "../api/chamados.js";
 import { store } from "../store.js";
 import { showConfirmationModal } from "../utils/feedbackmodal.js";
+// Importo o 'marked' para renderizar o Markdown da IA (negrito, listas, código) como HTML seguro.
 import { marked } from 'https://cdn.jsdelivr.net/npm/marked/lib/marked.esm.js';
 
-// --- ÍCONES SVG MODERNOS (Feather/Lucide) ---
+/**
+ * @constant {Object} ICONS
+ * @description Ícones Semânticos.
+ * * Usei ícones que reforçam o significado da ação:
+ * 'Send' para encaminhar (escalar), 'Check' para sucesso/concordar, 'CPU' para a IA.
+ */
 const ICONS = {
     arrowLeft: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>`,
     check: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>`,
@@ -21,7 +36,11 @@ const ICONS = {
 };
 
 /**
- * Constrói o template HTML para exibir os detalhes de um chamado
+ * @function getClienteDetalheTemplate
+ * @description Constrói o HTML da interface.
+ * * A complexidade aqui está em decidir quais botões mostrar.
+ * Eu uso um sistema de "blocos condicionais" para renderizar o Card de Ação correto
+ * dependendo se o chamado está Aberto, Fechado ou em Andamento.
  */
 function getClienteDetalheTemplate(chamado) {
     // --- VARIÁVEIS BÁSICAS ---
@@ -29,19 +48,19 @@ function getClienteDetalheTemplate(chamado) {
     const nomeCliente = (chamado.clienteNome || 'Cliente') + ' ' + (chamado.clienteSobrenome || '');
     const status = chamado.status_Cham;
     
-    // Tratamento de Classes para Status
     const statusClass = `status-${status.toLowerCase().replace(/\s+/g, '')}`;
 
+    // Verifica se quem está vendo é o próprio técnico (edge case)
     const usuarioLogadoId = store.usuarioLogado?.id;
     const tecResponsavelId = chamado.tecResponsavel_Cham;
     const isTecResponsavel = usuarioLogadoId && (usuarioLogadoId === tecResponsavelId);
 
-    // Markdown
+    // Parser de Markdown para HTML
     const solucaoIAHtml = chamado.solucaoIA_Cham 
         ? marked.parse(chamado.solucaoIA_Cham) 
         : "<em style='color:#999'>Aguardando análise ou sem resposta inicial da IA.</em>";
 
-    // --- ESTILOS CSS ---
+    // --- ESTILOS CSS (Scoped) ---
     const styles = `
         <style>
             /* Layout Grid Clean */
@@ -56,7 +75,7 @@ function getClienteDetalheTemplate(chamado) {
             .status-emandamento { background: #e3f2fd; color: #1565c0; }
             .status-fechado { background: #ffebee; color: #c62828; }
 
-            /* Boxes de Conteúdo (IA e Técnico) */
+            /* Boxes de Conteúdo (Destaque para IA vs Humano) */
             .content-box { 
                 background-color: #f8f9fa; 
                 border: 1px solid #e9ecef;
@@ -65,19 +84,19 @@ function getClienteDetalheTemplate(chamado) {
                 margin-bottom: 25px; 
                 font-family: 'Segoe UI', system-ui, sans-serif; 
             }
+            /* Roxo para IA */
             .box-ia { border-left: 4px solid #6c5ce7; }
+            /* Azul para Técnico */
             .box-tec { border-left: 4px solid #3b82f6; background-color: #eff6ff; }
             
             .section-header { display: flex; align-items: center; gap: 8px; margin-bottom: 15px; font-size: 1.1rem; font-weight: 600; }
             
-            /* Markdown */
+            /* Markdown Styling */
             .markdown-content { color: #2d3436; line-height: 1.6; font-size: 15px; }
             .markdown-content h3 { margin-top: 0; font-size: 1.1em; }
             .markdown-content ul { padding-left: 20px; }
 
-            /* Botões e Ações */
-            .btn-icon-text { display: inline-flex; align-items: center; justify-content: center; gap: 8px; font-weight: 500; }
-            
+            /* Action Card - Onde o usuário decide o futuro do chamado */
             .action-card {
                 background: #fff;
                 border: 1px solid #e2e8f0;
@@ -89,10 +108,13 @@ function getClienteDetalheTemplate(chamado) {
             .action-title { font-size: 1.1rem; font-weight: 600; color: #2d3748; margin-bottom: 10px; }
             .action-desc { color: #4a5568; margin-bottom: 20px; font-size: 0.95rem; }
             .action-buttons { display: flex; gap: 10px; flex-wrap: wrap; }
+            
+            /* Botões Genéricos */
+            .btn-icon-text { display: inline-flex; align-items: center; justify-content: center; gap: 8px; font-weight: 500; }
         </style>
     `;
 
-    // --- BLOCO: RESPOSTA DO TÉCNICO ---
+    // --- BLOCO: RESPOSTA DO TÉCNICO (Condicional) ---
     const solucaoTecnicoBlock = chamado.solucaoTec_Cham
         ? `
         <div class="section-header" style="color:#2563eb; margin-top: 30px;">
@@ -104,12 +126,14 @@ function getClienteDetalheTemplate(chamado) {
         `
         : '';
 
-    // --- BLOCO: LÓGICA DE BOTÕES DE AÇÃO ---
+    // --- BLOCO: LÓGICA DE DECISÃO (ACTION BUTTONS) ---
     let acoesClienteBlock = '';
+    
+    // Regra: Se fechado e não sou o técnico, posso avaliar ou reabrir.
     const deveMostrarFeedbackAposFechamento = status === 'Fechado' && !isTecResponsavel;
 
     if (deveMostrarFeedbackAposFechamento) {
-        // Cenário 1: Chamado FECHADO (Feedback)
+        // Cenário 1: Feedback Pós-Fechamento
         acoesClienteBlock = `
             <div class="action-card">
                 <div class="action-title">Validação Final</div>
@@ -127,8 +151,10 @@ function getClienteDetalheTemplate(chamado) {
             </div>
         `;
     } else if (status !== 'Fechado' && status !== 'Em andamento') {
-        // Cenário 2: Chamado ABERTO (Auto-atendimento ou Encaminhamento)
+        // Cenário 2: Triagem Inicial (Aberto)
+        // Se existe alguma solução proposta (IA ou Técnico), o cliente pode fechar.
         const podeFechar = chamado.solucaoIA_Cham || chamado.solucaoTec_Cham;
+        // Se está aberto, pode mandar para um humano.
         const podeEncaminhar = status === 'Aberto'; 
 
         acoesClienteBlock = `
@@ -209,12 +235,20 @@ function getClienteDetalheTemplate(chamado) {
     <div id="alert" style="margin-top:15px; max-width: 900px; margin-left: auto; margin-right: auto;"></div>`;
 }
 
+/**
+ * @class DetalhesIAView
+ * @description Controlador da visualização para o cliente.
+ */
 export class DetalhesIAView {
     constructor(chamadoId) {
         this.chamadoId = chamadoId;
         this.container = document.getElementById('view')
     }
 
+    /**
+     * @method render
+     * @description Busca os dados e renderiza o template.
+     */
     async render() {
         this.container.innerHTML = `<div id="alert"></div><div class="loading">Carregando detalhes do chamado ${this.chamadoId}...</div>`;
 
@@ -233,13 +267,19 @@ export class DetalhesIAView {
         }
     }
 
+    /**
+     * @method attachListeners
+     * @description Conecta os eventos de clique aos botões gerados dinamicamente.
+     * * Verifico se cada botão existe antes de adicionar o listener, pois nem todos
+     * os botões são renderizados em todos os estados do chamado.
+     */
     attachListeners(id) {
         document.getElementById('btnVoltar').addEventListener('click', () => this.voltarParaChamados());
 
         const btnRejeitar = document.getElementById('btnRejeitar'); // Encaminhar
-        const btnAceitar = document.getElementById('btnAceitar'); 
-        const btnConcordar = document.getElementById('btnConcordar');
-        const btnReabrir = document.getElementById('btnReabrir');
+        const btnAceitar = document.getElementById('btnAceitar'); // Fechar
+        const btnConcordar = document.getElementById('btnConcordar'); // Feedback
+        const btnReabrir = document.getElementById('btnReabrir'); // Reabrir
 
         if (btnRejeitar) {
             btnRejeitar.addEventListener('click', () => this.handleEncaminhar(id));
@@ -255,9 +295,10 @@ export class DetalhesIAView {
         }
     }
 
-    // --- HANDLERS DE AÇÃO ---
+    // --- HANDLERS DE AÇÃO (Controladores de Fluxo) ---
 
     async handleEncaminhar(id) {
+        // "Não resolveu": Manda para a fila dos técnicos
         const confirmed = await showConfirmationModal(
             "Encaminhar para Técnico", 
             "A resposta automática não resolveu? Deseja encaminhar este chamado para nossa equipe técnica?"
@@ -266,6 +307,7 @@ export class DetalhesIAView {
     }
     
     async handleFechar(id) {
+        // "Resolveu": Fecha o ticket
         const confirmed = await showConfirmationModal(
             "Fechar Chamado", 
             "O chamado será marcado como resolvido e FECHADO. Você confirma?"
@@ -274,6 +316,7 @@ export class DetalhesIAView {
     }
 
     async handleConcordar(id) {
+        // Feedback positivo pós-fechamento
         const confirmed = await showConfirmationModal(
             "Confirmar Solução", 
             "Ficamos felizes em ajudar! Ao confirmar, você valida a solução e o chamado permanece fechado."
@@ -282,6 +325,7 @@ export class DetalhesIAView {
     }
 
     async handleReabrir(id) {
+        // Feedback negativo pós-fechamento (Ticket volta pra fila)
         const confirmed = await showConfirmationModal(
             "Reabrir Chamado", 
             "O chamado retornará à fila de trabalho e um técnico será notificado. Confirma a reabertura?"
@@ -345,6 +389,11 @@ export class DetalhesIAView {
     }
 }
 
+/**
+ * @function iniciarDetalhesIA
+ * @description Função Helper exportada para iniciar a view.
+ * Atualiza a URL para permitir deep-linking (se o usuário der F5, volta pra cá).
+ */
 export function iniciarDetalhesIA(id) {
     location.hash = `#/chamados/detalhe/${id}`;
     const view = new DetalhesIAView(id);

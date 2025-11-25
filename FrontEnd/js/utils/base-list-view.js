@@ -1,177 +1,196 @@
-// utils/base-list-view.js
+/**
+ * @file base-list-view.js
+ * @description Classe Abstrata para Listagens.
+ * * Percebi que as telas de "Meus Chamados" e "Todos os Chamados" compartilhavam 80% da lógica 
+ * (paginação, filtros, estado atual). Para evitar duplicidade de código e facilitar a manutenção,
+ * criei esta classe base.
+ * * As telas específicas (Filhas) herdam daqui e só precisam se preocupar em buscar os dados (loadData).
+ * @author [Micaías Viola - Full Stack Developer]
+ */
 
 const DEFAULT_PAGE_SIZE = 5;
 
 /**
- * Classe base para gerenciar estado, paginação e filtragem em Views de lista.
- * As classes filhas devem implementar 'loadData()'.
- */
+ * @class BaseListView
+ * @description Gerenciador genérico de estado de lista.
+ * * Implementa o algoritmo de "Janela Deslizante" para a paginação (ex: 1 ... 4 5 6 ... 10).
+ */
 export class BaseListView {
-    
-    constructor(pageSize = DEFAULT_PAGE_SIZE) {
-        this.currentPage = 1;
-        this.totalCount = 0;
-        this.pageSize = pageSize;
-        
-        // Mantém o estado dos filtros (será usado nas chamadas de API)
-        this.filtroStatus = '';
-        this.termoBusca = '';
-    }
+    
+    /**
+     * @constructor
+     * @param {number} pageSize Quantidade de itens por página.
+     */
+    constructor(pageSize = DEFAULT_PAGE_SIZE) {
+        // Estado da Paginação
+        this.currentPage = 1;
+        this.totalCount = 0;
+        this.pageSize = pageSize;
+        
+        // Estado dos Filtros
+        // Mantenho aqui para garantir que, ao mudar de página, os filtros não se percam.
+        this.filtroStatus = '';
+        this.termoBusca = '';
+    }
 
-    /**
-     * NAVEGAÇÃO: Atualiza a página e carrega novos dados.
-     */
-    goToPage(page) {
-        const totalPages = Math.ceil(this.totalCount / this.pageSize);
-        if (page < 1 || page > totalPages) return;
-        
-        this.currentPage = page;
-        this.loadData(true); // Chamada para a função abstrata de carregamento da filha
-    }
+    /**
+     * @method goToPage
+     * @description Navegação segura entre páginas.
+     * * Valida se a página destino existe antes de tentar carregar, evitando erros de índice.
+     * @param {number} page Número da página destino.
+     */
+    goToPage(page) {
+        const totalPages = Math.ceil(this.totalCount / this.pageSize);
+        if (page < 1 || page > totalPages) return;
+        
+        this.currentPage = page;
+        // Chama o método que a classe Filha vai implementar
+        this.loadData(true); 
+    }
 
-    /**
-     * DISPARADOR: Reseta a página para 1 e força o recarregamento.
-     */
-    triggerLoad(resetPage = true) {
-        if (resetPage) {
-            this.currentPage = 1;
-        }
-        this.loadData(true); 
-    }
+    /**
+     * @method triggerLoad
+     * @description Disparador de recarregamento (ex: ao clicar em "Filtrar").
+     * * Geralmente, quando o usuário filtra algo, queremos voltar para a página 1
+     * para garantir que ele veja os resultados do início.
+     * @param {boolean} resetPage Se true, volta para a página 1.
+     */
+    triggerLoad(resetPage = true) {
+        if (resetPage) {
+            this.currentPage = 1;
+        }
+        this.loadData(true); 
+    }
 
-    /**
-     * Renderiza os botões de paginação com Página 1/Última Fixa e 3 botões centrais.
-     */
-    renderPagination() {
-        const totalPages = Math.ceil(this.totalCount / this.pageSize);
-        const paginationContainer = document.getElementById('paginationContainer');
-        
-        if (!paginationContainer || totalPages <= 1) {
-            if (paginationContainer) paginationContainer.innerHTML = '';
-            return;
-        }
-        
-        // Define o nome da instância global para o onclick
-        const instanceName = this.constructor.name === 'MeusChamadosView' ? 'meusChamadosView' : 'chamadoManager';
+    /**
+     * @method renderPagination
+     * @description O algoritmo visual da paginação.
+     * * Esta é a parte complexa. Eu não queria mostrar apenas "Anterior/Próximo" e nem
+     * uma lista gigante "1, 2, 3... 100".
+     * * Implementei uma lógica que mostra sempre a primeira, a última e as páginas ao redor
+     * da seleção atual (ex: 1 ... 4 [5] 6 ... 20).
+     */
+    renderPagination() {
+        const totalPages = Math.ceil(this.totalCount / this.pageSize);
+        const paginationContainer = document.getElementById('paginationContainer');
+        
+        // Se não tiver container ou só tiver 1 página, esconde a paginação para limpar a tela.
+        if (!paginationContainer || totalPages <= 1) {
+            if (paginationContainer) paginationContainer.innerHTML = '';
+            return;
+        }
+        
+        // 🚨 REFLECTION PARA ONCLICK GLOBAL
+        // Como o HTML é gerado como string, o onclick="window.x.goToPage()" precisa saber
+        // qual é o nome da variável global que segura esta instância.
+        // Verifico o nome da classe construtora para decidir.
+        const instanceName = this.constructor.name === 'MeusChamadosView' ? 'meusChamadosView' : 'chamadoManager';
 
-        let buttons = '';
-        let pageNumbersToRender = [];
+        let buttons = '';
+        let pageNumbersToRender = [];
 
-        // --- 1. BOTÃO "ANTERIOR" (Renderizado na ordem correta) ---
-        // Renderiza o botão Anterior SOMENTE se a página atual for > 1
-        if (this.currentPage > 1) {
-            buttons += `<button class="btn btn-sm" onclick="window.${instanceName}.goToPage(${this.currentPage - 1})">← Anterior</button>`;
-        }
+        // --- 1. BOTÃO "ANTERIOR" ---
+        if (this.currentPage > 1) {
+            buttons += `<button class="btn btn-sm" onclick="window.${instanceName}.goToPage(${this.currentPage - 1})">← Anterior</button>`;
+        }
 
+        // --- 2. CÁLCULO DOS NÚMEROS DE PÁGINA (Algoritmo da Janela) ---
+        let startPage, endPage;
 
-        // 2. Lógica para determinar o intervalo de páginas centrais
-        let startPage;
-        let endPage;
+        if (totalPages <= 5) {
+            // Cenário Simples: Poucas páginas, mostra todas.
+            startPage = 1;
+            endPage = totalPages;
+            for (let i = startPage; i <= endPage; i++) pageNumbersToRender.push(i);
+        } else {
+            // Cenário Complexo: Muitas páginas, usa reticências (...).
+            
+            // Define o "meio" (página atual +/- 1)
+            startPage = Math.max(2, this.currentPage - 1); 
+            endPage = Math.min(totalPages - 1, this.currentPage + 1);
 
-        if (totalPages <= 5) {
-            // Se houver 5 ou menos páginas, mostra todas.
-            startPage = 1;
-            endPage = totalPages;
-        } else {
-            // Caso: 1, ..., (P-1), P, (P+1), ..., Última
-            
-            // Define o intervalo central de 3 páginas
-            startPage = Math.max(2, this.currentPage - 1); 
-            endPage = Math.min(totalPages - 1, this.currentPage + 1);
-
-            // Ajuste para o início (ex: Pág 2, mostra 1, 2, 3)
+            // Ajuste de borda: Se estiver muito no começo (ex: pág 2)
             if (this.currentPage <= 3) {
                 startPage = 1;
                 endPage = 3;
             } 
-            
-            // Ajuste para o fim (ex: Última-1, mostra Última-2, Última-1, Última)
+            // Ajuste de borda: Se estiver muito no fim
             else if (this.currentPage > totalPages - 3) {
                 startPage = totalPages - 2;
                 endPage = totalPages;
             }
 
-            // Adiciona a Página 1 (fixa)
+            // Montagem do Array Visual
+            // Sempre mostra a primeira página
             pageNumbersToRender.push(1);
             
-            // Adiciona Reticências Iniciais se o início do intervalo for maior que 2
+            // Se houve um salto grande entre a pag 1 e o inicio do meio, põe reticências
             if (startPage > 2) {
                 pageNumbersToRender.push('...');
             }
 
-            // Adiciona os botões centrais (excluindo 1 e totalPages)
+            // Adiciona o miolo
             for (let i = startPage; i <= endPage; i++) {
                 if (i > 1 && i < totalPages) {
                     pageNumbersToRender.push(i);
                 }
             }
 
-            // Adiciona Reticências Finais se o fim do intervalo for menor que totalPages - 1
+            // Se houve um salto grande entre o fim do meio e a última pag, põe reticências
             if (endPage < totalPages - 1) {
                 pageNumbersToRender.push('...');
             }
 
-            // Adiciona a Última Página (fixa)
+            // Sempre mostra a última página
             if (totalPages > 1) {
                 pageNumbersToRender.push(totalPages);
             }
-
-            // Filtra duplicatas e ordena para processamento (necessário devido à lógica de reticências separada)
-            const filteredPages = [...new Set(pageNumbersToRender.filter(p => typeof p === 'number'))].sort((a, b) => a - b);
             
-            // Reconstroi a lista final, mantendo a ordem das reticências
+            // Limpeza de duplicatas e ordenação para garantir consistência visual
+            // (O Set remove números repetidos caso a lógica de borda tenha sobreposto)
+            const uniqueNumbers = [...new Set(pageNumbersToRender.filter(p => typeof p === 'number'))].sort((a, b) => a - b);
+            
+            // Reconstrução final com as reticências nos lugares certos
             pageNumbersToRender = [];
             let lastPageAdded = 0;
             
-            for (const pageNum of filteredPages) {
+            for (const pageNum of uniqueNumbers) {
                 if (pageNum > lastPageAdded + 1) {
                     pageNumbersToRender.push('...');
                 }
                 pageNumbersToRender.push(pageNum);
                 lastPageAdded = pageNum;
             }
-
-        } // Fim do 'else' para totalPages > 5
-
-
-        // 3. RENDERIZAÇÃO DOS BOTÕES NUMÉRICOS FINAIS
-
-        // Se totalPages <= 5, pageNumbersToRender já está correto
-        if (totalPages <= 5) {
-             for (let i = startPage; i <= endPage; i++) {
-                pageNumbersToRender.push(i);
-            }
         }
-        
-        // Remove duplicatas (caso simples, onde o '1' e o 'totalPages' podem ter sido adicionados várias vezes)
-        pageNumbersToRender = [...new Set(pageNumbersToRender)];
-        
 
+        // --- 3. RENDERIZAÇÃO DO HTML DOS NÚMEROS ---
         for (const item of pageNumbersToRender) {
             if (item === '...') {
                  buttons += `<span class="pagination-ellipsis">...</span>`;
             } else {
                 const pageNum = Number(item);
+                // Destaca a página atual com a classe 'primary'
                 const activeClass = pageNum === this.currentPage ? 'primary' : 'secondary';
                 buttons += `<button class="btn btn-sm ${activeClass}" onclick="window.${instanceName}.goToPage(${pageNum})">${pageNum}</button>`;
             }
         }
 
-        // --- 4. BOTÃO "PRÓXIMO" (Renderizado na ordem correta) ---
-        // Renderiza o botão Próximo SOMENTE se a página atual for < totalPages
+        // --- 4. BOTÃO "PRÓXIMO" ---
         if (this.currentPage < totalPages) {
             buttons += `<button class="btn btn-sm" onclick="window.${instanceName}.goToPage(${this.currentPage + 1})">Próximo →</button>`;
         }
 
+        paginationContainer.innerHTML = `<div class="pagination">${buttons}</div>`;
+    }
 
-        paginationContainer.innerHTML = `<div class="pagination">${buttons}</div>`;
-    }
-
-    /**
-     * MÉTODO ABSTRATO: Deve ser implementado na classe filha.
-     * Responsável por chamar a API e atualizar this.chamados e this.totalCount.
-     */
-    async loadData() {
-        throw new Error("O método loadData() deve ser implementado nas classes filhas.");
-    }
+    /**
+     * @method loadData
+     * @abstract
+     * @description Contrato obrigatório.
+     * * Este método lança um erro propositalmente se for chamado diretamente da classe Base.
+     * Isso obriga o desenvolvedor a implementar a busca de dados específica na classe Filha.
+     */
+    async loadData() {
+        throw new Error("O método loadData() deve ser implementado nas classes filhas.");
+    }
 }

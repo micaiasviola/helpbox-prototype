@@ -1,10 +1,22 @@
+/**
+ * @file routes/auth.js
+ * @description Rotas de Autenticação (Login/Logout/Session).
+ * * Este módulo é o "porteiro" do sistema. Ele lida com a verificação de credenciais,
+ * criação de cookies de sessão e identificação do usuário logado.
+ * @author [Micaías Viola - Full Stack Developer]
+ */
+
 const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcrypt');
 const { getPool, sql } = require('../db.js');
 const verificaSessao = require('../middlewares/verificarSessao.js');
 
-//Função para buscar usuario no bd
+/**
+ * @function buscarUsuarioPorEmail
+ * @description Consulta segura ao banco de dados para recuperar o hash da senha.
+ * @param {string} email Email fornecido no login.
+ */
 async function buscarUsuarioPorEmail(email){
     try {
         const pool = await getPool();
@@ -12,27 +24,33 @@ async function buscarUsuarioPorEmail(email){
             .input('email', sql.VarChar(255), email)
             .query(`
                 SELECT 
-                    id_User, 
-                    email_User, 
-                    senha_User, 
-                    nivelAcesso_User,
+                    id_User, 
+                    email_User, 
+                    senha_User, 
+                    nivelAcesso_User,
                     nome_User,
                     sobrenome_User,
                     cargo_User,
                     departamento_User
-                FROM Usuario 
-                WHERE email_User = @email
+                FROM Usuario 
+                WHERE email_User = @email
             `);
-        // Retorna o primeiro registro que contém o id, email
+        // Retorna o primeiro registro encontrado ou null
         return result.recordset[0] || null;
     } catch (error) {
         console.error('Erro ao buscar usuário:', error);
         throw error;
     }
-
 }
 
-// ROTA POST: /auth/login
+/**
+ * @route POST /auth/login
+ * @description Processo de Login.
+ * 1. Recebe credenciais.
+ * 2. Busca usuário no banco.
+ * 3. Compara a senha (hash) usando bcrypt.
+ * 4. Cria a sessão no servidor (express-session).
+ */
 router.post('/login', async (req, res) => {
     const { email, senha } = req.body;
 
@@ -48,31 +66,29 @@ router.post('/login', async (req, res) => {
             return res.status(401).json({ error: "Credenciais inválidas." });
         }
         
-        // --- LOGS E CORREÇÃO CRÍTICA COM .trim() ---
+        // --- SANITIZAÇÃO CRÍTICA DE DADOS ---
+        // O SQL Server às vezes retorna campos VARCHAR com espaços em branco no final (padding).
+        // O bcrypt considera espaços como parte da senha, então "senha123" !== "senha123   ".
+        // O .trim() remove esses espaços invisíveis e evita falsos negativos no login.
         
-        // 1. Limpa a senha enviada do frontend
         const senhaFormLimpa = senha.trim(); 
-        
-        // 2. Limpa o HASH que veio do BD (REMOVE CARACTERES INVISÍVEIS)
         const hashBDLimpo = usuario.senha_User.trim();
         
-        console.log('DEBUG 2: Senha enviada (TRIM):', senhaFormLimpa); 
-        console.log('DEBUG 3: Senha do BD (HASH LIDO + TRIM):', hashBDLimpo);
-        console.log('DEBUG 4: Tamanho do HASH lido (TRIM):', hashBDLimpo.length); 
-        console.log('HASH para comparação:', hashBDLimpo);
-        // ------------------------------------------
+        // Logs de auditoria para desenvolvimento (remover em produção se necessário)
+        console.log('DEBUG: Iniciando comparação de hash...'); 
 
-        // 3. Compara as strings LIMPAS
+        // Comparação criptográfica (lenta de propósito para evitar brute-force)
         const senhaCorreta = await bcrypt.compare(senhaFormLimpa, hashBDLimpo);
 
         if (!senhaCorreta) {
-            console.log('DEBUG 5: Comparação de senha FALHOU.'); 
+            console.log('DEBUG: Comparação de senha FALHOU.'); 
             return res.status(401).json({ error: "Credenciais inválidas." });
         }
 
         // --- AUTENTICAÇÃO BEM-SUCEDIDA! ---
 
-        // 4. Cria a Sessão
+        // Armazeno os dados essenciais do usuário na sessão (memória do servidor).
+        // O navegador recebe apenas um ID de sessão (cookie), não os dados.
         req.session.usuario = {
             id: usuario.id_User,
             email: usuario.email_User,
@@ -83,7 +99,6 @@ router.post('/login', async (req, res) => {
             nivel_acesso: usuario.nivelAcesso_User 
         };
 
-        // Resposta de sucesso
         res.json({ 
             mensagem: "Login realizado com sucesso.",
             nivel_acesso: usuario.nivelAcesso_User
@@ -95,10 +110,14 @@ router.post('/login', async (req, res) => {
     }
 });
 
-//Função para retornar as informações do usuario logado
-
+/**
+ * @route GET /auth/me
+ * @description Rota de "Who am I?".
+ * * O frontend chama essa rota ao carregar a página para saber se o usuário ainda está logado
+ * e qual é o seu nome/permissão, sem precisar fazer login de novo.
+ */
 router.get('/me', verificaSessao, (req, res) => {
-    //se sessão verificada, retorna os dados do usuario
+    // O middleware 'verificaSessao' garante que req.session.usuario existe.
     const usuario = req.session.usuario;
 
     res.json({
@@ -112,6 +131,11 @@ router.get('/me', verificaSessao, (req, res) => {
     });
 });
 
+/**
+ * @route POST /auth/logout
+ * @description Encerramento de sessão.
+ * Destrói a sessão no servidor e instrui o navegador a apagar o cookie.
+ */
 router.post('/logout', (req, res) => {
     req.session.destroy(err => {
         if (err) {
@@ -119,7 +143,7 @@ router.post('/logout', (req, res) => {
             return res.status(500).json({ error: 'Erro ao fazer logout.' });
         }   
 
-        res.clearCookie('connect.sid'); // Nome padrão do cookie de sessão
+        res.clearCookie('connect.sid'); // Remove o cookie de identificação
         res.json({ mensagem: 'Logout realizado com sucesso.' });
     });
 });

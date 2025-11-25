@@ -1,7 +1,22 @@
+/**
+ * @file dashboard.js
+ * @description Módulo de Inteligência de Negócios (BI) e Relatórios.
+ * * O objetivo deste módulo é fornecer uma visão macro da operação.
+ * * Decisão de Arquitetura: Optei por uma abordagem "Client-Side Calculation". 
+ * Carrego um dataset maior (ex: 1000 últimos chamados) uma única vez e faço todos os filtros,
+ * cálculos de KPI e exportação CSV diretamente no navegador. Isso torna a interação
+ * instantânea para o gestor, sem precisar de "loading" a cada filtro aplicado.
+ * @author [Micaías Viola - Full Stack Developer]
+ */
+
 import { apiGetChamados } from '../api/chamados.js';
 import { apiGetUsuarios } from '../api/usuarios.js';
 
-// --- ÍCONES SVG MODERNOS (Feather/Lucide) ---
+/**
+ * @constant {Object} ICONS
+ * @description Ícones para Dashboard.
+ * * Escolhi ícones voltados para análise: Gráficos, Filtros, Relógios e Download.
+ */
 const ICONS = {
     barChart: `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>`,
     users: `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>`,
@@ -13,9 +28,15 @@ const ICONS = {
     calendar: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>`
 };
 
+/**
+ * @class DashboardView
+ * @description Controlador da Tela de Relatórios.
+ */
 export class DashboardView {
     constructor() {
         this.container = document.getElementById('view');
+        
+        // Cache de Dados: Armazeno tudo aqui para filtrar localmente depois.
         this.allChamados = [];
         this.allUsuarios = [];
     }
@@ -25,6 +46,13 @@ export class DashboardView {
         await this.loadData();
     }
 
+    /**
+     * @method renderBaseHTML
+     * @description Constrói o layout do Dashboard.
+     * * O layout é dividido em duas partes:
+     * 1. KPIs (Indicadores-chave de desempenho) no topo para visão rápida.
+     * 2. Área de Relatórios com filtros avançados e tabela de resultados.
+     */
     renderBaseHTML() {
         const styles = `
             <style>
@@ -32,7 +60,7 @@ export class DashboardView {
                 .toolbar-title { display: flex; align-items: center; gap: 10px; margin-bottom: 30px; }
                 .icon-bg { background:#eef2f6; padding:10px; border-radius:10px; color:#4a5568; display: flex; align-items: center; justify-content:center; }
                 
-                /* Grid de KPIs */
+                /* Grid de KPIs (Cards Coloridos) */
                 .kpi-container {
                     display: grid;
                     grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
@@ -50,6 +78,7 @@ export class DashboardView {
                     flex-direction: column;
                     justify-content: space-between;
                 }
+                /* Efeito de Hover sutil para interatividade */
                 .kpi-card:hover { transform: translateY(-2px); box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); }
                 
                 .kpi-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
@@ -57,29 +86,28 @@ export class DashboardView {
                 .kpi-value { font-size: 2.2rem; font-weight: 700; color: #1e293b; margin: 0; line-height: 1; }
                 .kpi-label { color: #64748b; font-size: 0.9rem; font-weight: 500; margin-top: 5px; }
 
-                /* Cores Temáticas KPI */
+                /* Cores Temáticas KPI - Uso cores suaves para não cansar a vista */
                 .theme-blue .kpi-icon { background: #eff6ff; color: #3b82f6; }
                 .theme-red .kpi-icon { background: #fef2f2; color: #ef4444; }
                 .theme-green .kpi-icon { background: #f0fdf4; color: #22c55e; }
                 .theme-yellow .kpi-icon { background: #fefce8; color: #eab308; }
 
-                /* Filtros */
+                /* Área de Relatório */
                 .report-section { background: white; border-radius: 12px; padding: 25px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); border: 1px solid #e2e8f0; }
                 .section-title { font-size: 1.1rem; font-weight: 600; color: #334155; margin-bottom: 20px; display:flex; align-items:center; gap:8px; }
                 
+                /* Grid de Filtros Responsiva */
                 .filter-grid {
                     display: grid;
                     grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
                     gap: 15px;
-                    align-items: end;
+                    align-items: end; /* Alinha inputs com o botão Gerar */
                     margin-bottom: 25px;
                 }
                 .filter-label { display: block; margin-bottom: 6px; font-weight: 600; font-size: 0.85rem; color: #475569; }
                 
-                /* Botões */
+                /* Botões e Tabelas */
                 .btn-icon-text { display: inline-flex; align-items: center; justify-content: center; gap: 8px; font-weight: 500; }
-                
-                /* Tabela */
                 .report-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; padding-bottom:15px; border-bottom:1px solid #f1f5f9; }
                 .result-count { font-size: 0.95rem; color: #64748b; }
             </style>
@@ -207,16 +235,21 @@ export class DashboardView {
         document.getElementById('btnExportCsv').addEventListener('click', () => this.exportarCSV());
     }
 
+    /**
+     * @method loadData
+     * @description Carrega o Dataset Global.
+     * * Eu busco um volume maior de dados (1000 registros) e carrego a lista de usuários
+     * em paralelo (Promise.all) para otimizar o tempo de carregamento inicial.
+     * Com esses dados em memória, todos os filtros subsequentes são instantâneos.
+     */
     async loadData() {
         try {
-            // Busca 1000 registros para ter base estatística suficiente
-            // Idealmente a API teria um endpoint /stats, mas calcularemos no front por enquanto
             const [chamadosRaw, usuariosRaw] = await Promise.all([
-                apiGetChamados(1, 1000),
+                apiGetChamados(1, 1000), // Dataset ampliado
                 apiGetUsuarios()
             ]);
 
-            // Normalização dos Chamados
+            // Normalização robusta dos dados (tratamento de diferentes formatos de resposta da API)
             if (chamadosRaw.chamados && Array.isArray(chamadosRaw.chamados)) {
                 this.allChamados = chamadosRaw.chamados;
             } else if (Array.isArray(chamadosRaw)) {
@@ -227,7 +260,6 @@ export class DashboardView {
                 this.allChamados = [];
             }
 
-            // Normalização dos Usuários
             if (Array.isArray(usuariosRaw)) {
                 this.allUsuarios = usuariosRaw;
             } else if (usuariosRaw.data && Array.isArray(usuariosRaw.data)) {
@@ -248,31 +280,39 @@ export class DashboardView {
         }
     }
 
+    /**
+     * @method calculateKPIs
+     * @description Calcula métricas em tempo real no Frontend.
+     * * Itera sobre o array `allChamados` para gerar contagens de status.
+     */
     calculateKPIs() {
         const total = this.allChamados.length;
 
-        // Abertos: Status 'Aberto'
         const abertos = this.allChamados.filter(c => c.status_Cham === 'Aberto').length;
 
-        // Resolvidos: Status 'Fechado' ou 'Resolvido'
         const resolvidos = this.allChamados.filter(c => 
             c.status_Cham === 'Fechado' || c.status_Cham === 'Resolvido'
         ).length;
 
-        // Pendentes: 'Em andamento' MAS sem técnico responsável
+        // Lógica de Pendente: 'Em andamento' MAS sem técnico atribuído
         const pendentes = this.allChamados.filter(c => {
             const status = (c.status_Cham || '').toLowerCase();
             const semTecnico = !c.tecResponsavel_Cham; // null, 0 ou undefined
             return status === 'em andamento' && semTecnico;
         }).length;
 
-        // Animação simples dos números
+        // Atualiza o DOM
         document.getElementById('count-total').textContent = total;
         document.getElementById('count-aberto').textContent = abertos;
         document.getElementById('count-resolvido').textContent = resolvidos;
         document.getElementById('count-pendente').textContent = pendentes;
     }
 
+    /**
+     * @method populateTechnicians
+     * @description Preenche o <select> de técnicos dinamicamente.
+     * * Filtra a lista de usuários para pegar apenas quem é 'Tecnico' ou 'Administrador'.
+     */
     populateTechnicians() {
         const select = document.getElementById('filterTecnico');
         const tecnicos = this.allUsuarios.filter(u => 
@@ -287,6 +327,11 @@ export class DashboardView {
         });
     }
 
+    /**
+     * @method filtrarRelatorio
+     * @description Aplica filtros compostos (Data AND Técnico AND Status).
+     * * Como os dados já estão em memória, usamos o método .filter() do Array nativo.
+     */
     filtrarRelatorio() {
         const dtInicioVal = document.getElementById('filterDtInicio').value;
         const dtFimVal = document.getElementById('filterDtFim').value;
@@ -295,19 +340,19 @@ export class DashboardView {
 
         const dtInicio = dtInicioVal ? new Date(dtInicioVal) : null;
         const dtFim = dtFimVal ? new Date(dtFimVal) : null;
-        if (dtFim) dtFim.setHours(23, 59, 59, 999);
+        if (dtFim) dtFim.setHours(23, 59, 59, 999); // Ajuste para pegar o final do dia
 
         const filtrados = this.allChamados.filter(chamado => {
             const dataChamado = new Date(chamado.dataAbertura_Cham);
             
-            // Filtro Data
+            // 1. Filtro Data
             if (dtInicio && dataChamado < dtInicio) return false;
             if (dtFim && dataChamado > dtFim) return false;
 
-            // Filtro Técnico
+            // 2. Filtro Técnico
             if (idTecnico && String(chamado.tecResponsavel_Cham) !== String(idTecnico)) return false;
 
-            // Filtro Status
+            // 3. Filtro Status
             if (statusFilter && chamado.status_Cham !== statusFilter) return false;
 
             return true;
@@ -333,7 +378,7 @@ export class DashboardView {
         dados.forEach(c => {
             const dataF = new Date(c.dataAbertura_Cham).toLocaleDateString();
             
-            // Resolver Nome Técnico
+            // Cruzamento de dados (JOIN manual) para pegar nomes
             let nomeTecnico = '<span style="color:#999; font-style:italic">Não atribuído</span>';
             if (c.tecNome) {
                 nomeTecnico = `${c.tecNome} ${c.tecSobrenome || ''}`;
@@ -342,15 +387,13 @@ export class DashboardView {
                 if (tec) nomeTecnico = `${tec.nome_User} ${tec.sobrenome_User}`;
             }
 
-            // Resolver Nome Cliente
             let nomeCliente = c.clienteNome || 'Cliente';
             if (!c.clienteNome && c.clienteId_Cham) {
                  const cli = this.allUsuarios.find(u => u.id_User == c.clienteId_Cham);
                  if (cli) nomeCliente = cli.nome_User;
             }
 
-            // Badge Status
-            const statusClass = c.status_Cham.toLowerCase().replace(/\s/g, ''); // emandamento, aberto
+            const statusClass = c.status_Cham.toLowerCase().replace(/\s/g, ''); 
             const statusBadge = `<span class="badge ${statusClass}">${c.status_Cham}</span>`;
 
             const tr = document.createElement('tr');
@@ -366,25 +409,32 @@ export class DashboardView {
         });
     }
 
+    /**
+     * @method exportarCSV
+     * @description Gera um arquivo CSV para download direto no navegador.
+     * * Ideal para exportar dados para Excel/Google Sheets.
+     * * Dica: Adicionei o caractere BOM (\uFEFF) para garantir que o Excel abra com a acentuação correta.
+     */
     exportarCSV() {
         const rows = Array.from(document.querySelectorAll('#report-body tr'));
         if (rows.length === 0 || rows[0].textContent.includes('Nenhum registro')) {
             return alert('Não há dados na tabela para exportar.');
         }
 
-        let csvContent = "data:text/csv;charset=utf-8,\uFEFF"; // \uFEFF força o Excel a ler como UTF-8
-        csvContent += "ID;Data;Assunto;Status;Tecnico;Cliente\n"; // Cabeçalho (Ponto e vírgula é melhor para Excel BR)
+        let csvContent = "data:text/csv;charset=utf-8,\uFEFF"; // BOM para UTF-8 no Excel
+        csvContent += "ID;Data;Assunto;Status;Tecnico;Cliente\n"; // Separador ; é melhor para Excel PT-BR
 
         rows.forEach(row => {
             const cols = row.querySelectorAll('td');
-            // Limpa o HTML e aspas dos dados
+            // Limpeza dos dados: remove quebras de linha e envolve em aspas
             const rowData = Array.from(cols).map(col => {
                 let text = col.innerText.replace(/(\r\n|\n|\r)/gm, " ").trim();
-                return `"${text}"`; // Envolve em aspas para proteger virgulas internas
+                return `"${text}"`; 
             }).join(";");
             csvContent += rowData + "\n";
         });
 
+        // Criação e clique automático no link de download
         const encodedUri = encodeURI(csvContent);
         const link = document.createElement("a");
         link.setAttribute("href", encodedUri);

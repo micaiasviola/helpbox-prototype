@@ -1,99 +1,148 @@
+/**
+ * @file helpers.js
+ * @description Utilitários de Formatação e UX.
+ * * Este é o meu "canivete suíço". Aqui concentro toda a lógica repetitiva de transformação de dados.
+ * * Decisão de Arquitetura: Optei por funções puras que retornam Strings HTML. 
+ * Isso permite que eu use esses helpers dentro de Template Strings (``) em qualquer 
+ * outra View do sistema sem precisar importar componentes pesados.
+ * @author [Micaías Viola - Full Stack Developer]
+ */
+
 import { STATUS_MAP, PRIORIDADE_MAP } from './constants.js';
 
-
-export const MAX_LENGTH = 50; // Limite de caracteres para a descrição na tabela
-
+/**
+ * @constant {number} MAX_LENGTH
+ * @description Limite de caracteres para a visualização prévia na tabela.
+ * Escolhi 50 caracteres pois é o suficiente para dar contexto sem quebrar o layout em telas menores.
+ */
+export const MAX_LENGTH = 50; 
 
 /**
- * Formata uma data para o formato brasileiro
- */
+ * @function formatDate
+ * @description Padronização de Datas.
+ * * O JavaScript tende a usar o formato americano por padrão. Aqui forço o padrão PT-BR.
+ * * Tratamento de Erro: Se a data vier nula do banco (comum em campos opcionais como 'dataFechamento'),
+ * retorno 'N/A' para não quebrar a interface visualmente.
+ * @param {string} dateString String de data ISO ou similar.
+ * @returns {string} Data formatada (dd/mm/aaaa) ou 'N/A'.
+ */
 export function formatDate(dateString) {
-    if (!dateString) return 'N/A';
-    const date = new Date(dateString);
-    return date.toLocaleDateString('pt-BR');
+    if (!dateString) return 'N/A';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('pt-BR');
 }
 
 /**
- * Gera um badge colorido para o status do chamado
- */
+ * @function renderBadge
+ * @description Fábrica de Badges de Status.
+ * * Em vez de encher as Views com if/else para decidir a cor do status (Aberto = Verde, Fechado = Vermelho),
+ * centralizei essa lógica aqui. Se eu quiser mudar a cor de "Em andamento" no futuro, mudo só aqui.
+ * @param {string} status O status do chamado (ex: 'Aberto').
+ * @returns {string} HTML do badge.
+ */
 export function renderBadge(status) {
-    // 🚨 CORREÇÃO: Adicionado fallback para status nulo/undefined
-    const lowerStatus = (status || '').toLowerCase();
-    const cls = STATUS_MAP[lowerStatus] || '';
-    return '<span class="badge ' + cls + '">' + (status || 'N/A') + '</span>';
+    // Normalização: Garanto que null ou undefined virem string vazia para evitar erros no toLowerCase()
+    const lowerStatus = (status || '').toLowerCase().trim();
+    
+    // O STATUS_MAP (importado) contém as classes CSS.
+    // Se o status não existir no mapa, uso uma classe padrão (fallback).
+    const cls = STATUS_MAP[lowerStatus] || 'secondary';
+    
+    return `<span class="badge ${cls}">${status || 'N/A'}</span>`;
 }
 
 /**
- * Converte código de prioridade em texto legível
- */
+ * @function getPrioridadeTexto
+ * @description Tradutor de Códigos de Prioridade.
+ * * O banco de dados salva 'A', 'M', 'B' para economizar espaço. 
+ * Esta função traduz isso para 'Alta', 'Média', 'Baixa' e aplica a cor semântica correta.
+ * @param {string} prioridade Código da prioridade ('A', 'M', 'B').
+ * @returns {string} HTML do badge de prioridade.
+ */
 export function getPrioridadeTexto(prioridade) {
-    // 💡 SUGESTÃO: Você importa PRIORIDADE_MAP, mas não usa. 
-    // O ideal seria usar o Map importado.
-    const priorityMap = {
-        A: { text: 'Alta', class: 'danger' },
-        M: { text: 'Média', class: 'warning' },
-        B: { text: 'Baixa', class: 'success' }
-    };
-    const p = priorityMap[prioridade] || { text: prioridade, class: 'secondary' };
+    // Mapa local para mapear Código -> Texto e Classe CSS
+    const priorityMap = {
+        'A': { text: 'Alta', class: 'danger' },
+        'M': { text: 'Média', class: 'warning' },
+        'B': { text: 'Baixa', class: 'success' }
+    };
 
-    return `<span class="badge ${p.class}">${p.text}</span>`;
+    // Fallback seguro: Se vier um código desconhecido, mostro ele mesmo em cinza.
+    const p = priorityMap[prioridade] || { text: prioridade || 'N/A', class: 'secondary' };
+
+    return `<span class="badge ${p.class}">${p.text}</span>`;
 }
-
 
 /**
- * Trunca a descrição do chamado e adiciona um botão para visualização completa.
- * @param {string} descricao O texto completo da descrição.
- * @param {number} chamadoId O ID do chamado.
- * @returns {string} O HTML com a descrição truncada e o botão, ou a descrição completa.
- */
+ * @function renderDescricaoCurta
+ * @description Lógica de "Ver Mais" para textos longos.
+ * * Problema: Descrições gigantes quebram a tabela.
+ * * Solução: Trunco o texto se ele passar do limite e adiciono um botão interativo.
+ * * Decisão de UX: O botão chama `mostrarDescricaoCompleta` globalmente para abrir um alerta/modal rápido.
+ * @param {string} descricao O texto completo.
+ * @param {number} chamadoId O ID para buscar os dados completos se necessário.
+ * @returns {string} HTML seguro para inserção.
+ */
 export function renderDescricaoCurta(descricao, chamadoId) {
-    if (!descricao) {
-        return 'Nenhuma descrição.';
-    }
+    if (!descricao) {
+        return '<span style="color:#ccc; font-style:italic">Sem descrição.</span>';
+    }
 
-    if (descricao.length > MAX_LENGTH) {
-        // Trunca o texto e adiciona o botão "+"
-        const textoCurto = descricao.substring(0, MAX_LENGTH) + '...';
-        
-        // Mantido o onclick original que funcionava para o layout
-        return `${textoCurto} <button class="btn-mini" onclick="mostrarDescricaoCompleta('${chamadoId}')" title="Ver descrição completa"></button>`;
-    }
+    if (descricao.length > MAX_LENGTH) {
+        const textoCurto = descricao.substring(0, MAX_LENGTH) + '...';
+        
+        // O botão usa onclick inline apontando para a função exposta no window (veja o final do arquivo).
+        // Usei 'btn-mini' para ele ser discreto na tabela.
+        return `${textoCurto} <button class="btn-mini" onclick="mostrarDescricaoCompleta('${chamadoId}')" title="Ler tudo"></button>`;
+    }
 
-    return descricao; // Retorna a descrição completa se for curta
+    return descricao; 
 }
 
+/**
+ * @function mostrarDescricaoCompleta
+ * @description Handler do botão "Ver Mais".
+ * * Esta função precisa ser esperta: ela tem que descobrir qual tela está ativa (Meus Chamados ou Todos)
+ * para buscar os dados no lugar certo, já que não temos um Redux/Store global complexo.
+ * @param {number|string} chamadoId ID do chamado clicado.
+ */
 export function mostrarDescricaoCompleta(chamadoId) {
-    // 1. Tenta encontrar a instância correta (MeusChamadosView)
-    // A ordem aqui é crítica: procuramos pela view específica primeiro!
-    const activeView = window.meusChamadosView || window.chamadoManager; 
+    // 1. Detecção de Contexto
+    // Tento achar qual gerenciador está ativo na janela global.
+    const activeView = window.meusChamadosView || window.chamadoManager; 
     
-    // 🚨 Esta ORDEM é o que deve corrigir o bug do Técnico, 
-    // mas precisamos ter certeza de que 'meusChamadosView' é a única ativa.
+    if (!activeView) {
+        console.error("Erro: Nenhum gerenciador de view ativo encontrado.");
+        alert("Não foi possível carregar os detalhes. Tente recarregar a página.");
+        return;
+    }
     
-    if (!activeView) {
-        alert("Erro: O gerenciador de chamados não foi inicializado.");
-        return;
-    }
-    
-    // O array de dados: 'chamados' (em MeusChamadosView) ou 'chamadosData' (em ChamadoManager)
-    // Acessa o array da view ativa.
-    const dataArray = activeView.chamados || activeView.chamadosData; 
-    
-    if (!dataArray || dataArray.length === 0) {
-        alert("Dados do chamado não carregados.");
-        return;
-    }
+    // 2. Unificação de Fonte de Dados
+    // 'chamados' é usado em MeusChamadosView, 'chamadosData' em ChamadoManager.
+    // O operador || (OU) resolve isso elegantemente.
+    const dataArray = activeView.chamados || activeView.chamadosData; 
+    
+    if (!dataArray || dataArray.length === 0) {
+        alert("Dados ainda estão carregando. Aguarde um momento.");
+        return;
+    }
 
-    // 2. Encontra o objeto do chamado pelo ID
-    // O '==' é mantido pois é como estava funcionando.
-    const chamado = dataArray.find(c => c.id_Cham == chamadoId); 
-    
-    if (chamado && chamado.descricao_Cham) {
-        alert(`Descrição Completa do Chamado #${chamadoId} (${chamado.titulo_Cham || ''}):\n\n${chamado.descricao_Cham}`);
-    } else {
-        alert("Descrição não encontrada nos dados carregados.");
-    }
+    // 3. Busca Local (Otimização)
+    // Em vez de bater na API de novo (GET /chamado/id), busco no array que já está na memória RAM.
+    // Uso '==' para permitir comparação entre string "10" e number 10.
+    const chamado = dataArray.find(c => c.id_Cham == chamadoId); 
+    
+    if (chamado && chamado.descricao_Cham) {
+        // UX Simples: Um alert nativo resolve o problema sem precisar criar um modal DOM complexo para isso.
+        // Em um app maior, substituiríamos por um Dialog customizado.
+        alert(`📄 Descrição Completa #${chamadoId}\n\n${chamado.descricao_Cham}`);
+    } else {
+        alert("Descrição não disponível.");
+    }
 }
 
+
+// Necessário porque o HTML retornado por `renderDescricaoCurta` é injetado como string
+// e o navegador precisa encontrar essas funções no escopo 'window' ao clicar.
 window.mostrarDescricaoCompleta = mostrarDescricaoCompleta;
 window.renderDescricaoCurta = renderDescricaoCurta;

@@ -4,25 +4,26 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>HelpBox</title>
+    <title>HelpBox - Acesso</title>
     <link rel="icon" type="image/png" href="/assets/Logo3.png" />
     <link rel="stylesheet" href="/login/login.css" />
 </head>
 
 <body>
     <div class="login-container">
-        <img src="/assets/Imagem1.png" alt="Logo" width="200" height="90">
+        <img src="/assets/Imagem1.png" alt="Logo HelpBox" width="200" height="90">
 
         <p id="status-message" class="subtitle">Insira suas credenciais para continuar.</p>
 
         <form id="loginForm">
             <label for="email">Email:</label>
-            <input type="email" id="email" placeholder="Insira seu e-mail corporativo" required>
-
+            <input type="email" id="email" placeholder="Insira seu e-mail corporativo" autocomplete="off" required>
 
             <label for="senha">Senha:</label>
-            <input type="password" id="senha" placeholder="*********" required>
+            <input type="password" id="senha" placeholder="*********" autocomplete="off" required>
+            
             <button type="submit"> Entrar </button>
+            
             <a href="#" id="forgot-password-link" class="forgot-password">Esqueceu a senha?</a>
         </form>
 
@@ -33,30 +34,45 @@
 
     </div>
 
-    
     <script type="module">
         import { API_BASE } from '../js/utils/constants.js';
+        
+        // Cache de elementos do DOM para performance
         const loginForm = document.getElementById('loginForm');
         const statusMessage = document.getElementById('status-message');
+
+        /**
+         * Helper visual para atualizar o feedback do usuário.
+         * Muda a cor (classe CSS) e o texto dependendo se é erro, info ou sucesso.
+         */
         function updateStatus(message, type) {
-            statusMessage.textContent = `Status: ${message}`;
-            statusMessage.className = type;
+            statusMessage.textContent = message;
+            // As classes 'error', 'info', 'success' devem estar definidas no CSS
+            statusMessage.className = `subtitle ${type}`;
         }
 
+        /**
+         * Handler de Submissão do Formulário.
+         * É aqui que acontece a negociação de segurança com o Backend.
+         */
         loginForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
+            e.preventDefault(); // Evita o refresh padrão da página
+            
             const email = document.getElementById('email').value;
             const senha = document.getElementById('senha').value;
 
-            updateStatus('Tentando login...', 'info');
+            updateStatus('Autenticando...', 'info');
 
             try {
+                // Envio as credenciais para a API
                 const response = await fetch(`${API_BASE}/auth/login`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    // ESSENCIAL: Permite que o cookie de sessão seja enviado e recebido
+                    // PONTO CRÍTICO DE SEGURANÇA: 'credentials: include'
+                    // Isso instrui o navegador a aceitar o cookie 'connect.sid' que o servidor vai mandar.
+                    // Sem isso, o login funciona, mas o usuário é "deslogado" na próxima requisição.
                     credentials: 'include',
                     body: JSON.stringify({ email, senha })
                 });
@@ -64,28 +80,33 @@
                 const data = await response.json();
 
                 if (response.ok) {
-
-                    updateStatus(`Login realizado com sucesso! Nível de acesso: ${data.nivel_acesso}. O cookie de sessão foi salvo no seu navegador.`, 'success');
-                    window.location.href = '../'; // Redireciona para o dashboard
+                    // Sucesso: O cookie já está salvo no navegador automaticamente.
+                    updateStatus(`Sucesso! Redirecionando...`, 'success');
+                    
+                    // Pequeno delay para o usuário ler a mensagem de sucesso
+                    setTimeout(() => {
+                        window.location.href = '../'; // Manda para a Home/Dashboard
+                    }, 800);
                 } else {
-                    updateStatus(`Falha no Login (${response.status}): ${data.error || 'Erro desconhecido'}`, 'error');
+                    // Tratamento de erros de negócio (ex: Senha incorreta, Usuário não existe)
+                    updateStatus(`Acesso negado: ${data.error || 'Verifique suas credenciais'}`, 'error');
                 }
             } catch (error) {
-                updateStatus(`Erro de Conexão: ${error.message}`, 'error');
+                // Tratamento de erros de infraestrutura (API offline, Sem internet)
+                console.error("Erro crítico:", error);
+                updateStatus(`Servidor indisponível. Tente novamente mais tarde.`, 'error');
             }
         });
     </script>
+
     <script>
-        // 1. Encontra o link pelo ID que demos a ele.
         const forgotPasswordLink = document.getElementById('forgot-password-link');
 
-        // 2. Adiciona um "ouvinte" que espera por um clique no link.
         forgotPasswordLink.addEventListener('click', function(event) {
-            // Previne que o link tente navegar para outra página.
             event.preventDefault(); 
-            
-            // 3. Mostra o pop-up (alert) com a mensagem desejada.
-            alert("Informe ao seu administrador e solicite nova senha");
+            // UX Simples: Como ainda não implementamos recuperação automática por e-mail,
+            // oriento o usuário a procurar o suporte humano.
+            alert("Por favor, entre em contato com o administrador do sistema para redefinir sua senha.");
         });
     </script>
 </body>
