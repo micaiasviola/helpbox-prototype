@@ -10,71 +10,66 @@ const verificarAdm = require('../middlewares/verificarADM.js');
 
 /**
  * Função Central para buscar listas de chamados paginadas.
- * Elimina a repetição de código entre as rotas /, /meus e /tecnico.
- */
-/**
- * Função Central para buscar listas de chamados paginadas.
- */
-/**
- * Função Central para buscar listas de chamados paginadas.
  */
 async function fetchChamadosList(req, res, customWhere = '', customOrder = '', params = {}) {
     const page = parseInt(req.query.page) || 1;
     const pageSize = parseInt(req.query.pageSize) || 5;
     const offset = (page - 1) * pageSize;
     
-    // Limpa espaços extras
+    // Pega o ID do usuário da sessão para usar na ordenação (mesmo se não vier nos params)
+    const usuarioLogadoId = params.usuarioId || req.session?.usuario?.id || 0;
+
     const searchTerm = (req.query.q || '').trim();
     const statusFilter = req.query.status || '';
-
-    // Verifica se a busca é puramente numérica (ex: "10", "115")
     const isNumericInput = /^\d+$/.test(searchTerm);
 
     let whereClause = `1 = 1`;
     
-    // Filtros de Permissão e Status
+    // Filtros
     if (customWhere) whereClause += ` AND ${customWhere}`;
     if (statusFilter) whereClause += ` AND C.status_Cham = @statusFilter`;
     
-    // 🚨 LÓGICA DE BUSCA REFINADA 🚨
+    // Busca Inteligente
     if (searchTerm) {
         if (isNumericInput) {
-            // Se digitou número: 
-            // 1. Converte ID para Texto e busca quem COMEÇA com esse número (LIKE '11%')
-            // 2. Procura também no Título e Descrição (caso o número esteja no texto)
             whereClause += ` AND (
                 CAST(C.id_Cham AS NVARCHAR(20)) LIKE @searchIdPattern 
                 OR C.titulo_Cham LIKE @searchTerm 
                 OR C.descricao_Cham LIKE @searchTerm
             )`;
         } else {
-            // Se tem letras: Busca normal nos textos
             whereClause += ` AND (C.titulo_Cham LIKE @searchTerm OR C.descricao_Cham LIKE @searchTerm)`;
         }
     }
 
-   const defaultOrder = `
+    // 🚨 ORDENAÇÃO CORRIGIDA (SQL SERVER) 🚨
+    // A lógica aqui deve ser IDÊNTICA à do Javascript do Frontend
+    const defaultOrder = `
         ORDER BY 
         CASE 
-            -- 1. Meus em Andamento (Continuar)
+            -- 1. CONTINUAR (Peso 0)
+            -- 'Em andamento' E o técnico sou eu
             WHEN C.status_Cham = 'Em andamento' AND C.tecResponsavel_Cham = @usuarioId THEN 0 
             
-            -- 2. Livres em Andamento (Assumir)
-            WHEN C.status_Cham = 'Em andamento' AND C.tecResponsavel_Cham IS NULL THEN 1
+            -- 2. ASSUMIR (Peso 1)
+            -- 'Em andamento' E (Sem técnico) E (Eu NÃO sou o criador)
+            WHEN C.status_Cham = 'Em andamento' 
+                 AND (C.tecResponsavel_Cham IS NULL OR C.tecResponsavel_Cham = 0)
+                 AND C.clienteId_Cham <> @usuarioId THEN 1
             
-            -- 3. De Outros em Andamento (Visualizar)
-            WHEN C.status_Cham = 'Em andamento' THEN 2
-            
-            -- 4. Abertos (Detalhes)
-            WHEN C.status_Cham = 'Aberto' THEN 3
-            
-            -- 5. Fechados
-            WHEN C.status_Cham = 'Fechado' THEN 4
-            
-            ELSE 9 
+            -- 3. OLHO / RESTO (Peso 2)
+            -- Inclui: Fechados, Abertos, De outros técnicos, e os MEUS que estão sem técnico
+            ELSE 2 
         END ASC,
-        C.dataAbertura_Cham DESC -- 🚨 DATA RECENTE PRIMEIRO
+        
+        -- DESEMPATE DO GRUPO "OLHO" (Opcional)
+        -- Queremos ver 'Abertos' antes de 'Fechados' dentro do grupo 3
+        CASE WHEN C.status_Cham = 'Aberto' THEN 0 ELSE 1 END ASC,
+
+        -- FINALMENTE: Data mais recente
+        C.dataAbertura_Cham DESC 
     `;
+    
     const finalOrder = customOrder || defaultOrder;
 
     try {
@@ -83,17 +78,20 @@ async function fetchChamadosList(req, res, customWhere = '', customOrder = '', p
             .input('offset', sql.Int, offset)
             .input('pageSize', sql.Int, pageSize)
             .input('statusFilter', sql.NVarChar, statusFilter)
-            // Texto normal: procura em qualquer lugar (%termo%)
-            .input('searchTerm', sql.NVarChar, `%${searchTerm}%`);
+            .input('searchTerm', sql.NVarChar, `%${searchTerm}%`)
+            // Importante: Passamos o usuário logado para o SQL conseguir calcular a ordem
+            .input('usuarioId', sql.Int, usuarioLogadoId);
 
-        // 🚨 INPUT ESPECÍFICO PARA O ID
         if (isNumericInput) {
-            // Padrão "Começa com..." (termo%)
             request.input('searchIdPattern', sql.NVarChar, `${searchTerm}%`);
         }
 
+        // Adiciona params extras se houver
         for (const [key, value] of Object.entries(params)) {
-            request.input(key, sql.Int, value);
+             // Evita erro de duplicidade se usuarioId já foi passado acima
+            if (key !== 'usuarioId') {
+                request.input(key, sql.Int, value);
+            }
         }
 
         const query = `
@@ -163,13 +161,18 @@ router.get('/meus', async (req, res) => {
 // 2. CHAMADOS TÉCNICOS (LIVRES)
 router.get('/tecnico', async (req, res) => {
     const nivel = req.session?.usuario?.nivel_acesso;
+    const usuarioId = req.session?.usuario?.id; // <--- Pegar o ID aqui
+
     if (nivel < 2) return res.status(403).json({ error: 'Acesso negado.' });
 
+    // Nota: O filtro WHERE já garante que só vem sem técnico, 
+    // mas a ORDENAÇÃO precisa saber quem é você para jogar os seus para o final da lista.
     const where = `C.tecResponsavel_Cham IS NULL AND C.status_Cham = 'Em andamento'`;
-    // Prioriza Alta, depois data
-    const order = `ORDER BY C.prioridade_Cham DESC, C.dataAbertura_Cham DESC`;
-
-    await fetchChamadosList(req, res, where, order);
+    
+    // Podemos deixar vazio para usar o 'defaultOrder' inteligente que criamos acima
+    // OU forçar uma ordem específica se preferir. 
+    // Vamos usar vazio para aproveitar a lógica inteligente (Meus criados vão pro fim).
+    await fetchChamadosList(req, res, where, '', { usuarioId });
 });
 
 // 3. TODOS OS CHAMADOS (ADMIN)

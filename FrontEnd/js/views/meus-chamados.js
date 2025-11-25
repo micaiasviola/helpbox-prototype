@@ -1,15 +1,25 @@
+/*
+ * =================================================================
+ * View: Meus Chamados (Design Clean - Apenas Ícones)
+ * =================================================================
+ */
+
 import { apiGetMeusChamados } from '../api/chamados.js';
 import { store } from '../store.js';
 import { renderBadge, getPrioridadeTexto, renderDescricaoCurta, formatDate } from '../utils/helpers.js';
 import { iniciarSolucao } from './solucionar-chamado-detalhe.js';
+// Importação necessária para abrir o modal de detalhes/IA
+import { iniciarDetalhesIA } from './detalhes-IA.js'; 
+window.iniciarDetalhesIA = iniciarDetalhesIA;
+window.iniciarSolucao = iniciarSolucao;
 
-// --- ÍCONES SVG MODERNOS ---
+// --- ÍCONES SVG CLEAN (Padronizados) ---
 const ICONS = {
-    refresh: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>`,
-    eye: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>`,
-    play: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polygon points="10 8 16 12 10 16 10 8"></polygon></svg>`,
-    user: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:4px; vertical-align:middle;"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>`,
-    briefcase: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:4px; vertical-align:middle;"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path></svg>`,
+    refresh: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>`,
+    eye: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>`,
+    play: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polygon points="10 8 16 12 10 16 10 8"></polygon></svg>`,
+    user: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>`,
+    briefcase: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path></svg>`,
     list: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>`
 };
 
@@ -53,57 +63,60 @@ class MeusChamadosView {
 
         const styles = `
             <style>
-                /* --- CSS PARA FORÇAR LINHA ÚNICA --- */
+                /* --- BOTÕES TRANSPARENTES (Estilo Clean) --- */
+                .btn-action {
+                    padding: 6px;
+                    border-radius: 6px;
+                    border: 1px solid transparent;
+                    background: transparent;
+                    cursor: pointer;
+                    transition: all 0.2s;
+                    color: #555;
+                    display: inline-flex;
+                    align-items: center;
+                    justify-content: center;
+                }
+                .btn-action:hover { background: #eef2f6; color: #1976d2; } /* Azul padrão */
+                .btn-action:disabled { opacity: 0.5; cursor: not-allowed; }
+                
+                /* Hover Verde para o botão Play (Resolver) */
+                .btn-action.play:hover { background: #e0f2f1; color: #00695c; }
+
+                /* --- ESTRUTURA DOS FILTROS --- */
                 .filters-card {
                     background: #fff; 
                     padding: 15px; 
                     border-radius: 8px; 
                     box-shadow: 0 1px 3px rgba(0,0,0,0.05); 
                     margin-bottom: 20px;
-                    
-                    /* O segredo está aqui: */
                     display: flex; 
                     align-items: center; 
                     gap: 12px; 
-                    flex-wrap: nowrap; /* Não deixa quebrar linha no Desktop */
+                    flex-wrap: nowrap; 
                 }
 
-                /* Selects não esticam, ficam com tamanho do conteúdo ou fixo */
-                .filter-item {
-                    width: auto;
-                    min-width: 160px; /* Tamanho mínimo para não ficar espremido */
-                    margin: 0; /* Remove margens externas se houver */
-                }
-
-                /* O input de busca cresce para ocupar o espaço que sobra */
-                .search-wrapper {
-                    flex-grow: 1; 
-                }
+                .filter-item { width: auto; min-width: 160px; margin: 0; }
+                .search-wrapper { flex-grow: 1; }
+                .search-input { width: 100%; margin: 0; }
                 
-                .search-input {
-                    width: 100%;
-                    margin: 0;
-                }
-
-                /* Botão fica com tamanho natural */
                 .btn-refresh {
-                    white-space: nowrap; /* Texto não quebra */
-                    height: 38px; /* Força altura igual aos inputs (ajuste conforme seu CSS global) */
+                    white-space: nowrap; 
+                    height: 38px; 
                     display: inline-flex;
                     align-items: center;
                     gap: 6px;
                 }
 
-                /* Apenas em telas MUITO pequenas (celular), permitimos quebrar linha */
                 @media (max-width: 768px) {
                     .filters-card { flex-wrap: wrap; }
                     .filter-item, .search-wrapper { width: 100%; min-width: 100%; }
                 }
 
-                /* Badges e Ícones (Mantidos) */
-                .badge-vinculo { padding: 4px 8px; border-radius: 6px; font-size: 0.8rem; font-weight: 500; display: inline-flex; align-items: center; }
+                /* Badges */
+                .badge-vinculo { padding: 4px 10px; border-radius: 6px; font-size: 0.8rem; font-weight: 500; display: inline-flex; align-items: center; gap: 6px; }
                 .badge-vinculo-criado { background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0; }
                 .badge-vinculo-atribuido { background: #eff6ff; color: #1d4ed8; border: 1px solid #dbeafe; }
+                
                 .toolbar-title { display: flex; align-items: center; gap: 10px; margin-bottom: 24px; }
                 .icon-bg { background:#eef2f6; padding:8px; border-radius:8px; color:#4a5568; display: flex; align-items: center; }
             </style>
@@ -121,7 +134,6 @@ class MeusChamadosView {
             </div>
 
             <div class="filters-card">
-                
                 ${selectTipoHtml}
 
                 <select id="filtroStatus" class="select filter-item">
@@ -153,7 +165,7 @@ class MeusChamadosView {
                             <th style="color:#4a5568;">Categoria</th>
                             <th style="color:#4a5568;">Data</th>
                             <th style="color:#4a5568;">Vínculo</th> 
-                            <th style="color:#4a5568; text-align:right;">Ações</th>
+                            <th style="color:#4a5568; text-align:right; padding-right: 20px;">Ações</th>
                         </tr>
                     </thead>
                     <tbody id="tbodyChamados"></tbody>
@@ -174,20 +186,18 @@ class MeusChamadosView {
         `;
     }
 
+    // ... (Métodos verDescricaoCompleta, triggerLoad, attachListeners, goToPage mantidos sem alterações) ...
     verDescricaoCompleta(id) {
         const chamado = this.chamados.find(c => c.id_Cham === id);
         if (chamado) {
             const modal = document.getElementById('descModal');
-            const content = document.getElementById('descModalContent');
-            content.innerText = chamado.descricao_Cham;
+            document.getElementById('descModalContent').innerText = chamado.descricao_Cham;
             modal.showModal(); 
         }
     }
 
     triggerLoad(resetPage = true) {
-        if (resetPage) {
-            this.currentPage = 1;
-        }
+        if (resetPage) this.currentPage = 1;
         this.loadChamados(true);
     }
 
@@ -197,33 +207,16 @@ class MeusChamadosView {
         const buscaEl = document.getElementById('busca');
         const refreshEl = document.getElementById('refreshChamados');
 
-        if (filtroStatusEl) {
-            filtroStatusEl.addEventListener('change', (e) => {
-                this.filtroStatus = e.target.value;
-                this.triggerLoad(true);
-            });
-        }
-        if (filtroTipoEl) {
-            filtroTipoEl.addEventListener('change', (e) => {
-                this.filtroTipo = e.target.value;
-                this.triggerLoad(true);
-            });
-        }
+        if (filtroStatusEl) filtroStatusEl.addEventListener('change', (e) => { this.filtroStatus = e.target.value; this.triggerLoad(true); });
+        if (filtroTipoEl) filtroTipoEl.addEventListener('change', (e) => { this.filtroTipo = e.target.value; this.triggerLoad(true); });
         if (buscaEl) {
             let debounceTimeout;
             buscaEl.addEventListener('input', (e) => {
                 clearTimeout(debounceTimeout);
-                debounceTimeout = setTimeout(() => {
-                    this.termoBusca = e.target.value.toLowerCase();
-                    this.triggerLoad(true);
-                }, 300);
+                debounceTimeout = setTimeout(() => { this.termoBusca = e.target.value.toLowerCase(); this.triggerLoad(true); }, 300);
             });
         }
-        if (refreshEl) {
-            refreshEl.addEventListener('click', () => {
-                this.triggerLoad(true);
-            });
-        }
+        if (refreshEl) refreshEl.addEventListener('click', () => this.triggerLoad(true));
     }
 
     goToPage(page) {
@@ -234,6 +227,7 @@ class MeusChamadosView {
     }
 
     async loadChamados() {
+        // (Lógica de load mantida)
         const loadingDiv = document.getElementById('loadingChamados');
         const tbody = document.getElementById('tbodyChamados');
 
@@ -253,7 +247,6 @@ class MeusChamadosView {
             this.totalCount = response.totalCount;
 
             const chamadosOrdenados = this.sortChamados(this.chamados);
-
             this.renderTable(chamadosOrdenados);
             this.renderPagination();
 
@@ -269,6 +262,7 @@ class MeusChamadosView {
     }
 
     sortChamados(chamados) {
+        // (Lógica de sort mantida)
         const copy = [...chamados];
         const MEU_ID = Number(this.usuarioLogadoId); 
         const STATUS_EM_ANDAMENTO = 'Em andamento';
@@ -278,7 +272,6 @@ class MeusChamadosView {
             const tecIdB = Number(b.tecResponsavel_Cham);
             const statusA = a.status_Cham;
             const statusB = b.status_Cham;
-
             const getWeight = (status, tecId) => {
                 if (status === STATUS_EM_ANDAMENTO && tecId === MEU_ID) return 0;
                 if (status === STATUS_EM_ANDAMENTO && !tecId) return 1;
@@ -287,76 +280,69 @@ class MeusChamadosView {
                 if (status === 'Fechado') return 4;
                 return 9;
             };
-
-            const weightA = getWeight(statusA, tecIdA);
-            const weightB = getWeight(statusB, tecIdB);
-
-            if (weightA !== weightB) return weightA - weightB;
-
-            const dateA = new Date(a.dataAbertura_Cham);
-            const dateB = new Date(b.dataAbertura_Cham);
-            return dateB - dateA; 
+            const wA = getWeight(statusA, tecIdA);
+            const wB = getWeight(statusB, tecIdB);
+            if (wA !== wB) return wA - wB;
+            return new Date(b.dataAbertura_Cham) - new Date(a.dataAbertura_Cham); 
         });
     }
 
+    // =========================================================
+    // 🎨 MUDANÇA PRINCIPAL: BOTÕES TRANSPARENTES
+    // =========================================================
     getActionButton(chamadoId, status, clienteId_Cham) {
         const statusLower = status.toLowerCase();
         const isAuthor = Number(this.usuarioLogadoId) === Number(clienteId_Cham);
 
         // Cenário 1: Eu sou o autor (Cliente) -> Ver Solução
+        // Botão Olho Transparente
         if (isAuthor) {
-            return `<button class="btn btn-secondary btn-sm btn-icon-text" onclick="detalharChamadoIA(${chamadoId})">
-                ${ICONS.eye} Ver Solução
+            return `<button class="btn-action" onclick="iniciarDetalhesIA(${chamadoId})" title="Ver Solução">
+                ${ICONS.eye}
             </button>`;
         }
 
         // Cenário 2: Sou Técnico
         if (this.nivelAcesso >= NIVEL_TECNICO) {
             // Se está aberto ou em andamento, posso resolver
+            // Botão Play Transparente (Hover Verde)
             if (statusLower !== 'fechado' && statusLower !== 'resolvido') {
-                return `<button class="btn btn-third btn-sm btn-icon-text" onclick="iniciarSolucao(${chamadoId})">
-                    ${ICONS.play} Resolver
+                return `<button class="btn-action play" onclick="iniciarSolucao(${chamadoId})" title="Resolver">
+                    ${ICONS.play}
                 </button>`;
             }
             // Se fechado, apenas visualizo
-            return `<button class="btn btn-secondary btn-sm btn-icon-text" onclick="detalharChamadoIA(${chamadoId})">
-                ${ICONS.eye} Visualizar
+            // Botão Olho Transparente
+            return `<button class="btn-action" onclick="iniciarDetalhesIA(${chamadoId})" title="Visualizar">
+                ${ICONS.eye}
             </button>`;
         }
 
-        return `<button class="btn btn-secondary btn-sm" disabled>Visualizar</button>`;
+        return `<button class="btn-action" disabled title="Visualizar">${ICONS.eye}</button>`;
     }
 
     renderPagination() {
+        // (Lógica de paginação mantida)
         const totalPages = Math.ceil(this.totalCount / this.pageSize);
-        const paginationContainer = document.getElementById('paginationContainer');
-        const instanceName = 'meusChamadosView';
+        const container = document.getElementById('paginationContainer');
+        const instance = 'meusChamadosView';
 
-        if (!paginationContainer) return;
-        if (totalPages <= 1) {
-            paginationContainer.innerHTML = '';
-            return;
-        }
+        if (!container) return;
+        if (totalPages <= 1) { container.innerHTML = ''; return; }
 
         let buttons = '';
-        if (this.currentPage > 1) {
-            buttons += `<button class="btn btn-sm" onclick="window.${instanceName}.goToPage(${this.currentPage - 1})">← Anterior</button>`;
-        }
-
+        if (this.currentPage > 1) buttons += `<button class="btn btn-sm" onclick="window.${instance}.goToPage(${this.currentPage - 1})">← Anterior</button>`;
+        
         for (let i = 1; i <= totalPages; i++) {
              if (i === 1 || i === totalPages || (i >= this.currentPage - 1 && i <= this.currentPage + 1)) {
-                const activeClass = i === this.currentPage ? 'primary' : 'secondary';
-                buttons += `<button class="btn btn-sm ${activeClass}" onclick="window.${instanceName}.goToPage(${i})">${i}</button>`;
+                const active = i === this.currentPage ? 'primary' : 'secondary';
+                buttons += `<button class="btn btn-sm ${active}" onclick="window.${instance}.goToPage(${i})">${i}</button>`;
              } else if (i === this.currentPage - 2 || i === this.currentPage + 2) {
                  buttons += `<span class="pagination-ellipsis" style="padding:0 5px; color:#999;">...</span>`;
              }
         }
-
-        if (this.currentPage < totalPages) {
-            buttons += `<button class="btn btn-sm" onclick="window.${instanceName}.goToPage(${this.currentPage + 1})">Próximo →</button>`;
-        }
-
-        paginationContainer.innerHTML = `<div class="pagination" style="display:flex; gap:5px; justify-content:center; margin-top:20px;">${buttons}</div>`;
+        if (this.currentPage < totalPages) buttons += `<button class="btn btn-sm" onclick="window.${instance}.goToPage(${this.currentPage + 1})">Próximo →</button>`;
+        container.innerHTML = `<div class="pagination" style="display:flex; gap:5px; justify-content:center; margin-top:20px;">${buttons}</div>`;
     }
 
     renderTable(data) {
@@ -365,35 +351,24 @@ class MeusChamadosView {
 
         tbody.innerHTML = data.map(chamado => {
             const isAuthor = Number(this.usuarioLogadoId) === Number(chamado.clienteId_Cham);
-            
-            // Badge estilizado para vínculo (Criado por mim vs Atribuído)
-            let vinculoHtml = '';
-            if (isAuthor) {
-                vinculoHtml = `<span class="badge-vinculo badge-vinculo-criado">${ICONS.user} Criado por mim</span>`;
-            } else {
-                vinculoHtml = `<span class="badge-vinculo badge-vinculo-atribuido">${ICONS.briefcase} Atribuído a mim</span>`;
-            }
-
-            const actionButton = this.getActionButton(chamado.id_Cham, chamado.status_Cham, chamado.clienteId_Cham);
+            const vinculoHtml = isAuthor 
+                ? `<span class="badge-vinculo badge-vinculo-criado">${ICONS.user} Criado por mim</span>`
+                : `<span class="badge-vinculo badge-vinculo-atribuido">${ICONS.briefcase} Atribuído a mim</span>`;
 
             return `
                  <tr style="border-bottom: 1px solid #f0f0f0;">
                     <td style="color:#718096; text-align:center;">${chamado.id_Cham}</td>
-                    
-                    <td class="col-descricao"
-                        onclick="window.meusChamadosView.verDescricaoCompleta(${chamado.id_Cham})"
-                        title="Clique para ver a descrição completa"
-                        style="cursor: pointer; color: #4a5568;"
-                    >
+                    <td class="col-descricao" onclick="window.meusChamadosView.verDescricaoCompleta(${chamado.id_Cham})" title="Ver descrição completa" style="cursor: pointer; color: #4a5568;">
                         ${renderDescricaoCurta(chamado.descricao_Cham, chamado.id_Cham)}
                     </td>
-
                     <td>${renderBadge(chamado.status_Cham)}</td>
                     <td>${getPrioridadeTexto(chamado.prioridade_Cham)}</td>
                     <td style="color:#4a5568;">${chamado.categoria_Cham || '-'}</td>
                     <td style="color:#718096; font-size:0.9em;">${formatDate(chamado.dataAbertura_Cham)}</td>
                     <td>${vinculoHtml}</td> 
-                    <td style="text-align:right;">${actionButton}</td>
+                    <td style="text-align:right;">
+                        ${this.getActionButton(chamado.id_Cham, chamado.status_Cham, chamado.clienteId_Cham)}
+                    </td>
                  </tr>
             `;
         }).join('');
