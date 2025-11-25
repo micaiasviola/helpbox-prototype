@@ -857,18 +857,8 @@ body {
   }
 }
 
-<<<<<<< HEAD
-=======
-/* BOTAO DE RADIO */
-#demanda .demanda,
-#usuario .usuario,
-#tempo .tempo {
-  display: block;
-  margin-bottom: 6px;
-  /* opcional, só pra dar espaçamento */
-}
 
->>>>>>> origin/main
+
 /*BOTAO DE SAIDA*/
 .btn-logout {
   background-color: #bf3737ab;
@@ -879,4 +869,103 @@ body {
   padding: 8px 12px;
   cursor: pointer;
   font-size: 14px;
+}
+
+/** MANUAL **/
+
+    /* =============================
+   ESTILO GERAL DO MANUAL
+   ============================= */
+body {
+    background: #f7f8fa;
+    margin: 0;
+    padding: 0;
+    font-family: "Segoe UI", sans-serif;
+    color: #2d3748;
+}
+
+/* Container principal */
+.manual-container {
+    max-width: 1200px;
+    margin: 40px auto;
+    padding: 0 20px;
+    line-height: 1.7;
+}
+
+
+
+/* =============================
+   SEÇÕES DO MANUAL
+   ============================= */
+.manual-section {
+    background: #ffffff;
+    padding: 30px;
+    margin-bottom: 25px;
+    border-radius: 12px;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.05);
+    border-left: 6px solid #4a90e2;
+}
+
+/* Títulos das seções */
+.manual-section h2 {
+    margin-top: 0;
+    font-size: 1.7rem;
+    color: #2b4c7e;
+    font-weight: 600;
+}
+
+/* Subtítulos */
+.manual-section h3 {
+    margin-top: 25px;
+    font-size: 1.25rem;
+    color: #2d3748;
+    font-weight: 600;
+}
+
+/* Parágrafos */
+.manual-section p {
+    margin-top: 10px;
+    color: #4a5568;
+    font-size: 1rem;
+}
+
+/* Listas */
+.manual-section ul {
+    margin-top: 10px;
+    padding-left: 22px;
+}
+
+.manual-section li {
+    margin-bottom: 8px;
+    color: #4a5568;
+}
+
+/* Negrito */
+.manual-section strong {
+    color: #2d3748;
+}
+
+
+/* =============================
+   RESPONSIVIDADE
+   ============================= */
+@media (max-width: 768px) {
+    .manual-section {
+        padding: 20px;
+    }
+    
+    header h2 {
+        font-size: 1.6rem;
+    }
+}
+/* Garante que toda tipografia fique com peso consistente */
+.manual-section p,
+.manual-section li {
+    font-weight: 400;
+    color: #4a5568;
+}
+
+.manual-section strong {
+    font-weight: 600;
+    color: #2d3748;
 }
