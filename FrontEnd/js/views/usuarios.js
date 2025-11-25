@@ -193,7 +193,7 @@ export function renderUsuarios() {
     const alertBox = document.getElementById('alert');
     const dialog = document.getElementById('userDialog');
     const btnSave = document.getElementById('btnSaveModal');
-    
+
     // Inputs do formulário
     const inpNome = document.getElementById('novoNome');
     const inpSobrenome = document.getElementById('novoSobrenome');
@@ -206,13 +206,13 @@ export function renderUsuarios() {
 
     // Estado Local
     const nivelAcesso = { '1': 'Baixo', '2': 'Médio', '3': 'Alto' };
-    
+
     /** * @type {Array} 
      * Armazeno os usuários localmente para permitir operações rápidas (como filtro e busca futura)
      * sem precisar bater na API toda hora.
      */
     let usuarios = [];
-    
+
     /** * @type {number|null} 
      * Variável de controle essencial: se for null, o modal está em modo CRIAÇÃO.
      * Se tiver um ID, o modal está em modo EDIÇÃO.
@@ -264,7 +264,7 @@ export function renderUsuarios() {
             // --- MODO EDIÇÃO ---
             editId = user.id_User;
             document.getElementById('modalTitle').textContent = `Editar ${user.nome_User}`;
-            
+
             // Populo os inputs
             inpNome.value = user.nome_User;
             inpSobrenome.value = user.sobrenome_User;
@@ -272,20 +272,20 @@ export function renderUsuarios() {
             inpDep.value = user.departamento_User;
             inpCargo.value = user.cargo_User;
             inpPermissao.value = user.nivelAcesso_User;
-            
+
             // A senha não é obrigatória na edição, então deixo vazio
-            inpSenha.value = ''; 
+            inpSenha.value = '';
             inpConfirma.value = '';
             inpSenha.placeholder = "Deixe vazio para manter a atual";
             inpConfirma.placeholder = "";
-            
+
             btnSave.textContent = 'Salvar Alterações';
         } else {
             // --- MODO CRIAÇÃO ---
             editId = null;
             document.getElementById('modalTitle').textContent = 'Novo Usuário';
             document.getElementById('userForm').reset(); // Limpa o formulário nativamente
-            
+
             inpSenha.placeholder = "";
             inpConfirma.placeholder = "";
             btnSave.textContent = 'Criar Usuário';
@@ -328,7 +328,7 @@ export function renderUsuarios() {
         usuarios.forEach(u => {
             const tr = document.createElement('tr');
             tr.style.borderBottom = '1px solid #f0f0f0';
-            
+
             // Injeção de HTML seguro.
             // Note o uso de data-attributes (data-id) nos botões. 
             // Isso permite que eu identifique onde cliquei depois, sem criar um listener para cada botão.
@@ -391,7 +391,7 @@ export function renderUsuarios() {
         // UX: Modal de Confirmação antes de cometer a ação
         const actionVerb = editId ? 'editar' : 'criar';
         const userConfirmed = await showConfirmationModal(
-            'Confirmar Ação', 
+            'Confirmar Ação',
             `Deseja realmente ${actionVerb} o usuário <b>${nome}</b>?`
         );
 
@@ -409,7 +409,7 @@ export function renderUsuarios() {
         if (senha) dados.senha_User = senha;
 
         // Feedback Visual de "Salvando..."
-        const textoOriginal = btnSave.innerHTML; 
+        const textoOriginal = btnSave.innerHTML;
         btnSave.disabled = true;
         btnSave.textContent = 'Salvando...';
 
@@ -417,7 +417,7 @@ export function renderUsuarios() {
             if (editId !== null) {
                 // Atualização (PUT)
                 await apiUpdateUsuario(editId, dados);
-                
+
                 // Otimização: Atualizo o array local manualmente. 
                 // Isso evita ter que buscar todos os usuários do banco de novo (fetchUsuarios).
                 const index = usuarios.findIndex(u => u.id_User === editId);
@@ -430,11 +430,11 @@ export function renderUsuarios() {
                 usuarios.push({ id_User: resultado.id || '?', ...dados });
                 showAlert('Usuário criado com sucesso!');
             }
-            closeModal(); 
+            closeModal();
             draw(); // Redesenha a tabela com os novos dados
         } catch (err) {
             console.error(err);
-            alert(`Erro na operação: ${err.message}`); 
+            alert(`Erro na operação: ${err.message}`);
         } finally {
             btnSave.disabled = false;
             btnSave.innerHTML = textoOriginal;
@@ -451,7 +451,7 @@ export function renderUsuarios() {
     body.addEventListener('click', async e => {
         const btn = e.target.closest('button'); // Captura o clique mesmo se for no ícone SVG dentro do botão
         if (!btn) return;
-        
+
         const id = +btn.dataset.id;
         const action = btn.dataset.action;
         const user = usuarios.find(u => u.id_User === id);

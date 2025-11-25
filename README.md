@@ -1,112 +1,157 @@
-# 📦 HelpBox - Sistema Inteligente de Chamados
+# HelpBox - Prototype
 
-![Status](https://img.shields.io/badge/Status-Em_Desenvolvimento-yellow)
-![Node.js](https://img.shields.io/badge/Backend-Node.js-green)
-![SQL Server](https://img.shields.io/badge/Database-SQL_Server-red)
-![Gemini AI](https://img.shields.io/badge/AI-Google_Gemini-blue)
+Descrição: protótipo de um sistema de chamados (helpdesk) com frontend SPA em JavaScript puro, backend em Node.js/Express, integração com IA para sugestões automáticas e persistência em Microsoft SQL Server.
 
-O **HelpBox** é um sistema de Help Desk (Service Desk) moderno e responsivo, projetado para facilitar a abertura, gestão e solução de chamados de TI. O diferencial do sistema é a integração com **Inteligência Artificial (Google Gemini/Vertex AI)**, que analisa automaticamente a descrição do problema para sugerir prioridade, categoria e possíveis soluções técnicas.
+**Visão Geral**:
+- **Frontend**: SPA estática servida pela pasta `FrontEnd/` (HTML, CSS, JavaScript). O roteamento é feito por hash (`location.hash`) e o arquivo principal é `FrontEnd/js/main.js`.
+- **Backend**: API REST construída com `Node.js` e `Express` localizada em `BackEnd/`. Usa `express-session` para gerenciamento de sessão (cookie de sessão) e comunica-se com um banco Microsoft SQL Server via `mssql`.
+- **IA**: Serviço de apoio à abertura de chamados em `BackEnd/services/iaService.js` (integração com `@google/genai`) para gerar prioridades e sugestões de solução automatizadas.
 
----
+**Estrutura do repositório (resumo)**:
+- `BackEnd/` : servidor Express, rotas e acesso ao banco.
+	- `server.js` : ponto de entrada do servidor.
+	- `db.js` : configuração da conexão com SQL Server.
+	- `routes/` : `auth.js`, `usuarios.js`, `chamados.js` — endpoints da API.
+	- `middlewares/` : `verificarSessao.js`, `verificarADM.js` — proteção de rotas.
+	- `services/iaService.js` : integração com GenAI para sugestão de solução/prioridade.
+- `FrontEnd/` : aplicação cliente estática.
+	- `index.html` : página principal.
+	- `login/` : telas de login (`login_teste.html`).
+	- `js/` : lógica do SPA (`main.js`), `store.js`, APIs do frontend em `js/api/`.
+	- `css/` e `assets/` : estilo e imagens.
 
-## ✨ Funcionalidades Principais
+**Como o sistema funciona (fluxo principal)**:
+- O usuário acessa o frontend em `http://localhost:3000/` (servido pelo Express). Se não autenticar, é redirecionado para `/login/login_teste.html`.
+- Ao fazer login, o backend (rota `POST /auth/login`) valida credenciais com `bcrypt` e cria `req.session.usuario` no servidor. O navegador recebe apenas o cookie de sessão (connect.sid).
+- O frontend chama `GET /auth/me` (rota `GET /auth/me`) para saber quem está logado e obter `nivel_acesso`.
+- Internamente o frontend chama `navigate()` (em `FrontEnd/js/main.js`) para decidir qual view renderizar a partir do `location.hash`. A função `navigate` também aplica uma guarda de rota (route guard) usando `store.usuario.nivel_acesso`.
+- Chamados são gerenciados via rotas em `BackEnd/routes/chamados.js` (listar, criar, atualizar, fechar, reabrir, etc.). A criação de chamados passa pelo `iaService` que devolve prioridade e uma sugestão de solução.
 
-### 🤖 Integração com IA
-* **Classificação Automática:** Ao abrir um chamado, a IA define a prioridade (Alta, Média, Baixa) baseada no impacto e urgência descritos.
-* **Sugestão de Solução:** A IA fornece uma pré-análise técnica e passos para resolução para auxiliar o técnico.
+**Níveis de Acesso**:
+- **Nível 3 — Administrador (ADM)**:
+	- Acesso completo ao gerenciamento de usuários (`/usuarios`) e visão administrativa dos chamados.
+	- Protegido pelo middleware `verificarADM` (ver `BackEnd/middlewares/verificarADM.js`).
+- **Nível 2 — Solucionador / Técnico**:
+	- Acesso a filas técnicas (rota `GET /chamados/tecnico`, rota de 'todos' no frontend).
+	- Pode assumir e resolver chamados.
+- **Nível 1 — Cliente**:
+	- Acesso a criação de chamados e visualização de seus próprios chamados (`/chamados/meus`).
 
-### 👤 Perfil: Cliente (Nível 1)
-* Abertura de chamados com formulário detalhado.
-* Visualização do histórico de "Meus Chamados".
-* Acompanhamento de status em tempo real.
-* Validação de solução (Fechar ou Reabrir chamado).
+No frontend, `FrontEnd/js/main.js` contém o mapa `ROTA_NIVEL_MINIMO` que define restrições por rota (ex.: `todos` exige nível técnico, `usuarios` exige admin). A função `controlarAcessoMenu(usuario)` oculta links do menu conforme o nível do usuário.
 
-### 🛠️ Perfil: Técnico (Nível 2)
-* **Fila Inteligente:** Visualização de chamados "Em andamento" e livres.
-* **Ordenação Prioritária:** Chamados atribuídos ao técnico aparecem sempre no topo.
-* **Atribuição:** Funcionalidade de "Pegar Chamado" da fila.
-* Registro de solução técnica e encerramento.
+**Tecnologias utilizadas**:
+- Node.js + Express
+- Microsoft SQL Server (via `mssql`)
+- `express-session` para sessão no servidor (cookie `connect.sid`)
+- `bcrypt` para hashing de senhas
+- `cors` e `dotenv`
+- `@google/genai` (opcional, usado em `iaService.js`) para geração de sugestões automáticas
+- Frontend: HTML5, CSS, JavaScript (Vanilla), Fetch API
 
-### 🛡️ Perfil: Administrador (Nível 3)
-* Visão global de todos os chamados do sistema.
-* Permissão para excluir chamados (apenas status Fechado).
-* Gerenciamento de usuários (previsto).
-* Escalonamento de chamados.
+**Variáveis de ambiente esperadas** (.env)
+- `PORT` (opcional) — porta do servidor (default 3000)
+- `DB_SERVER`, `DB_DATABASE`, `DB_USER`, `DB_PASSWORD`, `DB_PORT`, `DB_ENCRYPT` — conexão SQL Server (veja `BackEnd/db.js`).
+- `GEMINI_API_KEY` — chave para o serviço GenAI (opcional, usado por `iaService.js`).
 
-### 💻 Interface (UI/UX)
-* **Design Responsivo:** Tabela adaptável para mobile com barra de rolagem horizontal.
-* **Filtros Dinâmicos:** Filtragem por status (Aberto, Em Andamento, Fechado) e busca por texto.
-* **Paginação:** Paginação no servidor (Server-side pagination) para lidar com grande volume de dados.
+Exemplo mínimo de `.env`:
 
----
+```
+PORT=3000
+DB_SERVER=localhost
+DB_DATABASE=Helpbox
+DB_USER=sa
+DB_PASSWORD=SuaSenha
+DB_PORT=1433
+DB_ENCRYPT=false
+GEMINI_API_KEY=xxxxx
+```
 
-## 🚀 Como rodar o projeto
+**Dependências (instalação)**
+Nota: o projeto não contém `package.json` no repositório. Para executar, inicie um `package.json` no diretório `BackEnd/` e instale as dependências abaixo.
 
-Siga os passos abaixo para executar o sistema em sua máquina local ou servidor.
+Abra um PowerShell na pasta `BackEnd` e execute:
 
-### 📋 Pré-requisitos
+```powershell
+npm init -y
+npm install express cors express-session mssql bcrypt dotenv @google/genai
+```
 
-Certifique-se de ter instalado:
-1.  **[Node.js](https://nodejs.org/)** (Versão 16 ou superior).
-2.  **[SQL Server](https://www.microsoft.com/pt-br/sql-server/sql-server-downloads)** (Local ou Azure SQL).
-3.  Uma conta no **Google Cloud Platform** (para a API da IA).
+Se não for usar a integração com IA, pode omitir `@google/genai`.
 
-### 🔧 Instalação
+**Banco de Dados (esquema mínimo sugerido)**
+As rotas esperam duas tabelas principais: `Usuario` e `Chamado`. Abaixo há um esqueleto SQL básico — ajuste conforme necessidade:
 
-1.  **Clone o repositório:**
-    ```bash
-    git clone [https://github.com/seu-usuario/helpbox.git](https://github.com/seu-usuario/helpbox.git)
-    cd helpbox
-    ```
+```sql
+CREATE TABLE Usuario (
+	id_User INT IDENTITY PRIMARY KEY,
+	nome_User VARCHAR(255),
+	sobrenome_User VARCHAR(255),
+	email_User VARCHAR(255) UNIQUE,
+	senha_User VARCHAR(500), -- armazena hash do bcrypt
+	cargo_User VARCHAR(255),
+	departamento_User VARCHAR(255),
+	nivelAcesso_User INT
+);
 
-2.  **Instale as dependências:**
-    ```bash
-    npm install
-    ```
+CREATE TABLE Chamado (
+	id_Cham INT IDENTITY PRIMARY KEY,
+	clienteId_Cham INT REFERENCES Usuario(id_User),
+	titulo_Cham VARCHAR(255),
+	descricao_Cham NVARCHAR(MAX),
+	status_Cham VARCHAR(50),
+	dataAbertura_Cham DATETIME,
+	dataProblema DATETIME,
+	dataFechamento_Cham DATETIME NULL,
+	tecResponsavel_Cham INT NULL REFERENCES Usuario(id_User),
+	prioridade_Cham CHAR(1),
+	solucaoIA_Cham NVARCHAR(MAX),
+	solucaoTec_Cham NVARCHAR(MAX),
+	solucaoFinal_Cham NVARCHAR(MAX)
+);
+```
 
-3.  **Configure o Banco de Dados:**
-    * Certifique-se de que seu SQL Server está rodando.
-    * Crie um banco de dados chamado `HelpDeskDB` (ou o nome que preferir).
-    * Execute o script SQL (localizado na pasta `/database` ou similar) para criar as tabelas `Usuario` e `Chamado`.
+**Executando a aplicação (desenvolvimento)**
+1. Configure o banco de dados e crie as tabelas.
+2. Crie o arquivo `.env` em `BackEnd/` com as variáveis necessárias.
+3. Instale dependências (veja seção acima).
+4. Inicie o servidor:
 
-4.  **Configure as Credenciais do Google (IA):**
-    * Baixe sua chave de conta de serviço do Google Cloud em formato `.json`.
-    * Renomeie o arquivo para `google-credentials.json`.
-    * Coloque-o na **raiz** do projeto.
+```powershell
+# dentro da pasta BackEnd
+node server.js
+# ou, se adicionar scripts no package.json: npm start
+```
 
-5.  **Configure as Variáveis de Ambiente:**
-    * Crie um arquivo `.env` na raiz do projeto.
-    * Preencha com os seus dados (baseado no `.env.example`):
+5. Abra o navegador em `http://localhost:3000/`.
 
-    ```env
-    # Configuração do Servidor
-    PORT=3000
-    SESSION_SECRET=sua_chave_secreta_para_sessao
+Observações para ambiente de produção:
+- Altere `express-session` para usar um `store` persistente (Redis, banco, etc.) e defina `cookie.secure = true` se estiver usando HTTPS.
+- Proteja as chaves (`.env`) e não comite-as no controle de versão.
+- Habilite `DB_ENCRYPT=true` se o servidor SQL exigir conexão encriptada.
 
-    # Configuração do Banco de Dados (SQL Server)
-    DB_USER=seu_usuario_sql
-    DB_PWD=sua_senha_sql
-    DB_SERVER=localhost (ou seu servidor azure)
-    DB_NAME=HelpDeskDB
+**Testes rápidos / chamadas úteis**
+- Fazer login (exemplo com `curl`):
 
-    # Configuração da IA (Google)
-    GOOGLE_APPLICATION_CREDENTIALS="./google-credentials.json"
-    PROJECT_ID="id-do-seu-projeto-gcp"
-    LOCATION="us-central1"
-    ```
+```powershell
+curl -X POST -H "Content-Type: application/json" -c cookies.txt -d '{"email":"usuario@ex.com","senha":"senha"}' http://localhost:3000/auth/login
+```
 
-### ▶️ Executando
+- Verificar usuário logado (usa cookie salvo `cookies.txt`):
 
-1.  **Inicie o servidor:**
-    ```bash
-    npm start
-    # ou para desenvolvimento:
-    npm run dev
-    ```
+```powershell
+curl -b cookies.txt http://localhost:3000/auth/me
+```
 
-2.  **Acesse no navegador:**
-    Abra `http://localhost:3000`
+**Observações importantes de segurança**
+- Nunca armazene senhas em texto claro — o backend já usa `bcrypt` para hashes.
+- Em produção, use HTTPS e marque cookies de sessão como `secure` e `httpOnly`.
+- Evite logs de senhas em ambientes reais; os `console.log` atuais ajudam no desenvolvimento, mas devem ser removidos ou reduzidos.
 
----
+**Notas finais / pontos de melhoria sugeridos**
+- Adicionar `package.json` e scripts (`start`, `dev`) no repositório para facilitar execução.
+- Substituir o armazenamento de sessão em memória por Redis ou outro store persistente.
+- Isolar a configuração de rotas e o parsing de parâmetros de rota (melhor suporte a rotas com parâmetros em `main.js`).
 
-## 📂 Estrutura do Projeto
+
+
+

@@ -83,9 +83,9 @@ class AbrirChamadoView {
                 
                 <div id="usuario">
                     <label class="label"> Ocorre com todos os usuários ou apenas com você? <span style="color:red" >* </span> </label>
-                    <label class="usuario"> <input type="radio" name="usuarios" value="todos" required> Todos os usuários </label>
-                    <label class="usuario"> <input type="radio" name="usuarios" value="cinq"> Atinge apenas um grupo específico </label>
-                    <label class="usuario"> <input type="radio" name="usuarios" value="eu"> Apenas comigo </label>
+                    <label class="usuario"> <input type="radio" name="usuarios" value="Todos" required> Todos os usuários </label>
+                    <label class="usuario"> <input type="radio" name="usuarios" value="Grupo"> Atinge apenas um grupo específico </label>
+                    <label class="usuario"> <input type="radio" name="usuarios" value="Eu"> Apenas comigo </label>
                 </div>
                 
                 <div id="tempo">
