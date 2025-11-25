@@ -1,19 +1,31 @@
-/*
- * =================================================================
- * View: Meus Chamados (Design Clean - Apenas Ícones)
- * =================================================================
+/**
+ * @file meus-chamados.js
+ * @description View "Meus Chamados" (Painel Pessoal).
+ * * Esta tela tem uma dualidade interessante: ela serve tanto para o Cliente acompanhar
+ * os chamados que abriu, quanto para o Técnico ver sua "fila de trabalho" pessoal.
+ * * Minha prioridade aqui foi a clareza visual: o usuário precisa saber instantaneamente
+ * se aquele item é uma tarefa para ele fazer ou apenas uma solicitação que ele está esperando.
+ * @author [Micaías Viola - Full Stack Developer]
  */
 
 import { apiGetMeusChamados } from '../api/chamados.js';
 import { store } from '../store.js';
 import { renderBadge, getPrioridadeTexto, renderDescricaoCurta, formatDate } from '../utils/helpers.js';
 import { iniciarSolucao } from './solucionar-chamado-detalhe.js';
-// Importação necessária para abrir o modal de detalhes/IA
 import { iniciarDetalhesIA } from './detalhes-IA.js'; 
+
+// EXPOSIÇÃO GLOBAL (Hack de Escopo)
+// Como estou gerando o HTML via Template Strings com atributos onclick="funcao()",
+// o navegador busca essas funções no escopo global (window). 
+// Como este é um módulo ES6 (fechado), preciso expor manualmente as funções que o HTML vai chamar.
 window.iniciarDetalhesIA = iniciarDetalhesIA;
 window.iniciarSolucao = iniciarSolucao;
 
-// --- ÍCONES SVG CLEAN (Padronizados) ---
+/**
+ * @constant {Object} ICONS
+ * @description Ícones SVG Clean.
+ * * Mantendo a consistência visual com o restante do sistema.
+ */
 const ICONS = {
     refresh: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>`,
     eye: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>`,
@@ -26,14 +38,18 @@ const ICONS = {
 const NIVEL_TECNICO = 2;
 const DEFAULT_PAGE_SIZE = 5;
 
+/**
+ * @class MeusChamadosView
+ * @description Gerencia a view pessoal do usuário.
+ */
 class MeusChamadosView {
     constructor(containerId = 'view') {
         this.container = document.getElementById(containerId);
         this.chamados = []; 
         
-        // Filtros
+        // Filtros de Estado
         this.filtroStatus = '';
-        this.filtroTipo = '';
+        this.filtroTipo = ''; // Importante: Filtra entre "Criado por mim" vs "Atribuído a mim"
         this.termoBusca = '';
         
         this.currentPage = 1;
@@ -42,6 +58,7 @@ class MeusChamadosView {
         this.usuarioLogadoId = store.usuarioLogado?.id || null;
         this.nivelAcesso = store.usuarioLogado?.nivel_acesso || 0;
         
+        // Singleton da instância para acesso global se necessário
         window.meusChamadosView = this;
     }
 
@@ -51,8 +68,15 @@ class MeusChamadosView {
         await this.loadChamados();
     }
 
+    /**
+     * @method renderBaseHTML
+     * @description Injeta o Layout e CSS.
+     * * Aqui utilizei Flexbox para criar uma barra de filtros responsiva que se adapta
+     * se o usuário redimensionar a janela, mantendo os controles alinhados.
+     */
     renderBaseHTML() {
-        // Lógica do Select de Tipo (Técnico vs Cliente)
+        // Renderização Condicional: Só mostro o filtro de "Tipo" se o usuário for Técnico.
+        // Clientes comuns não resolvem chamados, então não faz sentido mostrar essa opção para eles.
         const selectTipoHtml = this.nivelAcesso >= NIVEL_TECNICO ? `
             <select id="filtroTipo" class="select filter-item" style="border-left: 3px solid #6c5ce7; font-weight: 500;">
                 <option value="">Todos os Vínculos</option>
@@ -79,7 +103,7 @@ class MeusChamadosView {
                 .btn-action:hover { background: #eef2f6; color: #1976d2; } /* Azul padrão */
                 .btn-action:disabled { opacity: 0.5; cursor: not-allowed; }
                 
-                /* Hover Verde para o botão Play (Resolver) */
+                /* Hover Verde para o botão Play (Resolver) - Incentivo visual à ação */
                 .btn-action.play:hover { background: #e0f2f1; color: #00695c; }
 
                 /* --- ESTRUTURA DOS FILTROS --- */
@@ -96,7 +120,7 @@ class MeusChamadosView {
                 }
 
                 .filter-item { width: auto; min-width: 160px; margin: 0; }
-                .search-wrapper { flex-grow: 1; }
+                .search-wrapper { flex-grow: 1; } /* Ocupa o espaço restante */
                 .search-input { width: 100%; margin: 0; }
                 
                 .btn-refresh {
@@ -107,12 +131,13 @@ class MeusChamadosView {
                     gap: 6px;
                 }
 
+                /* Mobile */
                 @media (max-width: 768px) {
                     .filters-card { flex-wrap: wrap; }
                     .filter-item, .search-wrapper { width: 100%; min-width: 100%; }
                 }
 
-                /* Badges */
+                /* Badges de Vínculo (Destaque visual importante) */
                 .badge-vinculo { padding: 4px 10px; border-radius: 6px; font-size: 0.8rem; font-weight: 500; display: inline-flex; align-items: center; gap: 6px; }
                 .badge-vinculo-criado { background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0; }
                 .badge-vinculo-atribuido { background: #eff6ff; color: #1d4ed8; border: 1px solid #dbeafe; }
@@ -165,7 +190,7 @@ class MeusChamadosView {
                             <th style="color:#4a5568;">Categoria</th>
                             <th style="color:#4a5568;">Data</th>
                             <th style="color:#4a5568;">Vínculo</th> 
-                            <th style="color:#4a5568; text-align:right; padding-right: 20px;">Ações</th>
+                            <th style="color:#4a5568; text-align:right;">Ações</th>
                         </tr>
                     </thead>
                     <tbody id="tbodyChamados"></tbody>
@@ -186,7 +211,6 @@ class MeusChamadosView {
         `;
     }
 
-    // ... (Métodos verDescricaoCompleta, triggerLoad, attachListeners, goToPage mantidos sem alterações) ...
     verDescricaoCompleta(id) {
         const chamado = this.chamados.find(c => c.id_Cham === id);
         if (chamado) {
@@ -197,7 +221,9 @@ class MeusChamadosView {
     }
 
     triggerLoad(resetPage = true) {
-        if (resetPage) this.currentPage = 1;
+        if (resetPage) {
+            this.currentPage = 1;
+        }
         this.loadChamados(true);
     }
 
@@ -207,16 +233,34 @@ class MeusChamadosView {
         const buscaEl = document.getElementById('busca');
         const refreshEl = document.getElementById('refreshChamados');
 
-        if (filtroStatusEl) filtroStatusEl.addEventListener('change', (e) => { this.filtroStatus = e.target.value; this.triggerLoad(true); });
-        if (filtroTipoEl) filtroTipoEl.addEventListener('change', (e) => { this.filtroTipo = e.target.value; this.triggerLoad(true); });
+        if (filtroStatusEl) {
+            filtroStatusEl.addEventListener('change', (e) => {
+                this.filtroStatus = e.target.value;
+                this.triggerLoad(true);
+            });
+        }
+        if (filtroTipoEl) {
+            filtroTipoEl.addEventListener('change', (e) => {
+                this.filtroTipo = e.target.value;
+                this.triggerLoad(true);
+            });
+        }
+        // Debounce na busca para evitar muitas requisições
         if (buscaEl) {
             let debounceTimeout;
             buscaEl.addEventListener('input', (e) => {
                 clearTimeout(debounceTimeout);
-                debounceTimeout = setTimeout(() => { this.termoBusca = e.target.value.toLowerCase(); this.triggerLoad(true); }, 300);
+                debounceTimeout = setTimeout(() => {
+                    this.termoBusca = e.target.value.toLowerCase();
+                    this.triggerLoad(true);
+                }, 300);
             });
         }
-        if (refreshEl) refreshEl.addEventListener('click', () => this.triggerLoad(true));
+        if (refreshEl) {
+            refreshEl.addEventListener('click', () => {
+                this.triggerLoad(true);
+            });
+        }
     }
 
     goToPage(page) {
@@ -226,8 +270,13 @@ class MeusChamadosView {
         this.loadChamados(true);
     }
 
+    /**
+     * @method loadChamados
+     * @description Busca dados do backend.
+     * * O endpoint `apiGetMeusChamados` já é inteligente o suficiente para saber quem é
+     * o usuário logado e filtrar os dados, mas eu envio parâmetros extras de filtro da UI.
+     */
     async loadChamados() {
-        // (Lógica de load mantida)
         const loadingDiv = document.getElementById('loadingChamados');
         const tbody = document.getElementById('tbodyChamados');
 
@@ -246,7 +295,9 @@ class MeusChamadosView {
             this.chamados = response.chamados;
             this.totalCount = response.totalCount;
 
+            // Ordenação no Cliente para garantir a consistência visual imediata
             const chamadosOrdenados = this.sortChamados(this.chamados);
+
             this.renderTable(chamadosOrdenados);
             this.renderPagination();
 
@@ -261,8 +312,13 @@ class MeusChamadosView {
         }
     }
 
+    /**
+     * @method sortChamados
+     * @description Lógica de ordenação visual.
+     * * A prioridade é mostrar primeiro o que o usuário precisa ATUAR (Em andamento + É meu).
+     * Depois o que está pendente, e por fim o histórico.
+     */
     sortChamados(chamados) {
-        // (Lógica de sort mantida)
         const copy = [...chamados];
         const MEU_ID = Number(this.usuarioLogadoId); 
         const STATUS_EM_ANDAMENTO = 'Em andamento';
@@ -272,30 +328,40 @@ class MeusChamadosView {
             const tecIdB = Number(b.tecResponsavel_Cham);
             const statusA = a.status_Cham;
             const statusB = b.status_Cham;
+
             const getWeight = (status, tecId) => {
-                if (status === STATUS_EM_ANDAMENTO && tecId === MEU_ID) return 0;
-                if (status === STATUS_EM_ANDAMENTO && !tecId) return 1;
+                if (status === STATUS_EM_ANDAMENTO && tecId === MEU_ID) return 0; // Topo
+                if (status === STATUS_EM_ANDAMENTO && !tecId) return 1; // Meio
                 if (status === STATUS_EM_ANDAMENTO && tecId !== MEU_ID) return 2;
                 if (status === 'Aberto') return 3;
-                if (status === 'Fechado') return 4;
+                if (status === 'Fechado') return 4; // Fim
                 return 9;
             };
-            const wA = getWeight(statusA, tecIdA);
-            const wB = getWeight(statusB, tecIdB);
-            if (wA !== wB) return wA - wB;
-            return new Date(b.dataAbertura_Cham) - new Date(a.dataAbertura_Cham); 
+
+            const weightA = getWeight(statusA, tecIdA);
+            const weightB = getWeight(statusB, tecIdB);
+
+            if (weightA !== weightB) return weightA - weightB;
+
+            // Desempate por data (mais recente primeiro)
+            const dateA = new Date(a.dataAbertura_Cham);
+            const dateB = new Date(b.dataAbertura_Cham);
+            return dateB - dateA; 
         });
     }
 
-    // =========================================================
-    // 🎨 MUDANÇA PRINCIPAL: BOTÕES TRANSPARENTES
-    // =========================================================
+    /**
+     * @method getActionButton
+     * @description Decide qual botão exibir com base no papel do usuário no chamado.
+     * * Aqui a lógica é diferente da tela de "Todos os Chamados".
+     * Se eu sou o autor: Vejo "Ver Solução" (ícone Eye).
+     * Se sou técnico responsável: Vejo "Resolver" (ícone Play).
+     */
     getActionButton(chamadoId, status, clienteId_Cham) {
         const statusLower = status.toLowerCase();
         const isAuthor = Number(this.usuarioLogadoId) === Number(clienteId_Cham);
 
-        // Cenário 1: Eu sou o autor (Cliente) -> Ver Solução
-        // Botão Olho Transparente
+        // Cenário 1: Eu sou o autor (Cliente) -> Apenas visualizo a solução/progresso
         if (isAuthor) {
             return `<button class="btn-action" onclick="iniciarDetalhesIA(${chamadoId})" title="Ver Solução">
                 ${ICONS.eye}
@@ -304,15 +370,13 @@ class MeusChamadosView {
 
         // Cenário 2: Sou Técnico
         if (this.nivelAcesso >= NIVEL_TECNICO) {
-            // Se está aberto ou em andamento, posso resolver
-            // Botão Play Transparente (Hover Verde)
+            // Se o chamado está ativo, dou a opção de trabalhar nele (Play)
             if (statusLower !== 'fechado' && statusLower !== 'resolvido') {
                 return `<button class="btn-action play" onclick="iniciarSolucao(${chamadoId})" title="Resolver">
                     ${ICONS.play}
                 </button>`;
             }
-            // Se fechado, apenas visualizo
-            // Botão Olho Transparente
+            // Se já fechou, apenas histórico (Eye)
             return `<button class="btn-action" onclick="iniciarDetalhesIA(${chamadoId})" title="Visualizar">
                 ${ICONS.eye}
             </button>`;
@@ -322,26 +386,34 @@ class MeusChamadosView {
     }
 
     renderPagination() {
-        // (Lógica de paginação mantida)
         const totalPages = Math.ceil(this.totalCount / this.pageSize);
         const container = document.getElementById('paginationContainer');
-        const instance = 'meusChamadosView';
+        const instanceName = 'meusChamadosView';
 
         if (!container) return;
-        if (totalPages <= 1) { container.innerHTML = ''; return; }
+        if (totalPages <= 1) {
+            container.innerHTML = '';
+            return;
+        }
 
         let buttons = '';
-        if (this.currentPage > 1) buttons += `<button class="btn btn-sm" onclick="window.${instance}.goToPage(${this.currentPage - 1})">← Anterior</button>`;
-        
+        if (this.currentPage > 1) {
+            buttons += `<button class="btn btn-sm" onclick="window.${instanceName}.goToPage(${this.currentPage - 1})">← Anterior</button>`;
+        }
+
         for (let i = 1; i <= totalPages; i++) {
              if (i === 1 || i === totalPages || (i >= this.currentPage - 1 && i <= this.currentPage + 1)) {
-                const active = i === this.currentPage ? 'primary' : 'secondary';
-                buttons += `<button class="btn btn-sm ${active}" onclick="window.${instance}.goToPage(${i})">${i}</button>`;
+                const activeClass = i === this.currentPage ? 'primary' : 'secondary';
+                buttons += `<button class="btn btn-sm ${activeClass}" onclick="window.${instanceName}.goToPage(${i})">${i}</button>`;
              } else if (i === this.currentPage - 2 || i === this.currentPage + 2) {
                  buttons += `<span class="pagination-ellipsis" style="padding:0 5px; color:#999;">...</span>`;
              }
         }
-        if (this.currentPage < totalPages) buttons += `<button class="btn btn-sm" onclick="window.${instance}.goToPage(${this.currentPage + 1})">Próximo →</button>`;
+
+        if (this.currentPage < totalPages) {
+            buttons += `<button class="btn btn-sm" onclick="window.${instanceName}.goToPage(${this.currentPage + 1})">Próximo →</button>`;
+        }
+
         container.innerHTML = `<div class="pagination" style="display:flex; gap:5px; justify-content:center; margin-top:20px;">${buttons}</div>`;
     }
 
@@ -351,6 +423,8 @@ class MeusChamadosView {
 
         tbody.innerHTML = data.map(chamado => {
             const isAuthor = Number(this.usuarioLogadoId) === Number(chamado.clienteId_Cham);
+            
+            // Badge visual para diferenciar origem
             const vinculoHtml = isAuthor 
                 ? `<span class="badge-vinculo badge-vinculo-criado">${ICONS.user} Criado por mim</span>`
                 : `<span class="badge-vinculo badge-vinculo-atribuido">${ICONS.briefcase} Atribuído a mim</span>`;

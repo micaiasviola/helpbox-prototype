@@ -1,9 +1,24 @@
+/**
+ * @file solucionar-chamado-detalhe.js
+ * @description View de Detalhes e Resolução de Chamados.
+ * * Este módulo é onde o trabalho real acontece. Aqui o técnico lê o problema, 
+ * vê a sugestão da IA e escreve a solução final.
+ * * Projetei esta tela para ser híbrida: ela funciona tanto como "Editor" (para o técnico responsável)
+ * quanto como "Visualizador Read-Only" (para admins ou outros técnicos curiosos).
+ * @author [Micaías Viola - Full Stack Developer]
+ */
+
 import { apiGetChamadoById, apiUpdateChamado } from "../api/chamados.js";
 import { store } from "../store.js";
 import { showConfirmationModal } from "../utils/feedbackmodal.js"; 
+// Uso 'marked' para converter o Markdown da resposta da IA em HTML bonito e legível.
 import { marked } from 'https://cdn.jsdelivr.net/npm/marked/lib/marked.esm.js';
 
-// --- ÍCONES SVG MODERNOS (Feather/Lucide) ---
+/**
+ * @constant {Object} ICONS
+ * @description Ícones SVG Modernos (Estilo Feather/Lucide).
+ * * Escolhi ícones que representam ações claras: Save (Salvar Rascunho), Check (Finalizar), CPU (IA).
+ */
 const ICONS = {
     arrowLeft: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>`,
     save: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>`,
@@ -17,27 +32,33 @@ const ICONS = {
 };
 
 /**
- * Gera o HTML do template.
- * A decisão de 'isReadOnly' agora é feita antes de chamar esta função.
+ * @function getSolucaoTemplate
+ * @description Gera o HTML completo da tela de detalhes.
+ * * Separei a lógica de template da lógica de controle para manter o código limpo.
+ * Aqui eu decido se mostro os botões de ação ou apenas um banner de "Somente Leitura",
+ * dependendo do parâmetro `isReadOnly`.
+ * @param {Object} chamado Objeto completo com dados do chamado.
+ * @param {boolean} isReadOnly Se true, desabilita inputs e esconde botões de salvar.
  */
 function getSolucaoTemplate(chamado, isReadOnly) {
     const dataAbertura = new Date(chamado.dataAbertura_Cham).toLocaleDateString();
     const nomeCliente = (chamado.clienteNome || 'Cliente') + ' ' + (chamado.clienteSobrenome || '');
     
+    // Parser de Markdown: Transforma **texto** em <b>texto</b>, etc.
     const solucaoIAHtml = chamado.solucaoIA_Cham 
         ? marked.parse(chamado.solucaoIA_Cham) 
         : "<em style='color:#999'>Nenhuma resposta da IA registrada.</em>";
 
-    // --- CSS Styles Inline ---
+    // --- CSS Styles Inline (Scoped) ---
     const styles = `
         <style>
-            /* Layout e Containers */
+            /* Grid de Detalhes (Status, Data, Categoria) */
             .details-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 25px; padding-bottom: 20px; border-bottom: 1px solid #eee; }
             .detail-item { display: flex; flex-direction: column; gap: 4px; }
             .detail-label { font-size: 0.75rem; color: #718096; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; display:flex; align-items:center; gap:5px; }
             .detail-value { font-size: 0.95rem; color: #2d3748; font-weight: 500; }
             
-            /* Box da IA */
+            /* Box Visual da IA (Destaque roxo) */
             .ia-box { 
                 background-color: #f8f9fa; 
                 border: 1px solid #e9ecef;
@@ -49,13 +70,12 @@ function getSolucaoTemplate(chamado, isReadOnly) {
             }
             .section-header { display: flex; align-items: center; gap: 8px; margin-bottom: 15px; color: #2d3748; font-size: 1.1rem; font-weight: 600; }
             
-            /* Markdown Clean */
+            /* Estilização do conteúdo Markdown */
             .markdown-content { color: #2d3436; line-height: 1.6; font-size: 15px; }
-            .markdown-content h1, .markdown-content h2, .markdown-content h3 { margin-top: 15px; margin-bottom: 10px; font-weight: 600; }
+            .markdown-content h1, .markdown-content h2 { margin-top: 15px; margin-bottom: 10px; font-weight: 600; }
             .markdown-content ul, .markdown-content ol { padding-left: 20px; margin-bottom: 15px; }
-            .markdown-content li { margin-bottom: 4px; }
             
-            /* Badges */
+            /* Badges de Status e Prioridade */
             .badge-status { padding: 4px 10px; border-radius: 12px; font-size: 0.85rem; font-weight: 600; display: inline-block; }
             .status-aberto { background: #e0f2f1; color: #00695c; }
             .status-emandamento { background: #e3f2fd; color: #1565c0; }
@@ -66,22 +86,23 @@ function getSolucaoTemplate(chamado, isReadOnly) {
             .prio-Media { background: #fef3c7; color: #92400e; border: 1px solid #fde68a; }
             .prio-Baixa { background: #d1fae5; color: #065f46; border: 1px solid #a7f3d0; }
 
-            /* Buttons & Inputs */
+            /* Inputs e Botões */
             .btn-icon-text { display: inline-flex; align-items: center; justify-content: center; gap: 8px; font-weight: 500; }
+            /* Estilo visual para quando o campo está bloqueado */
             .readonly-textarea { background-color: #f8f9fa; cursor: not-allowed; color: #6c757d; border-color: #e2e8f0; }
             .actions-bar { margin-top: 20px; display: flex; justify-content: flex-end; gap: 10px; border-top: 1px solid #eee; padding-top: 20px; }
         </style>
     `;
 
-    // Configuração Visual baseada no modo
+    // --- LÓGICA DE UI CONDICIONAL ---
     const tituloTela = isReadOnly ? 'Visualizar Chamado' : 'Solucionar Chamado';
     const disabledAttr = isReadOnly ? 'disabled' : '';
     const textAreaClass = isReadOnly ? 'input readonly-textarea' : 'input';
     
-    // Tratamento de Classes para Status e Prioridade
     const statusClass = `status-${chamado.status_Cham.toLowerCase().replace(/\s+/g, '')}`;
     const prioClass = `prio-${chamado.prioridade_Cham}`;
 
+    // Se for ReadOnly, não gero os botões de ação para evitar confusão.
     const buttonsHtml = isReadOnly ? '' : `
         <div class="actions-bar">
             <button id="btnSalvarSolucao" class="btn btn-secondary btn-icon-text">
@@ -93,6 +114,7 @@ function getSolucaoTemplate(chamado, isReadOnly) {
         </div>
     `;
 
+    // Banner informativo se estiver em modo leitura
     const infoBanner = isReadOnly 
         ? `<div style="background: #e3f2fd; padding: 12px; border-radius: 6px; margin-bottom: 20px; color: #1565c0; border: 1px solid #bbdefb; display:flex; align-items:center; gap: 10px;">
              ${ICONS.info}
@@ -166,6 +188,10 @@ function getSolucaoTemplate(chamado, isReadOnly) {
     </div>`;
 }
 
+/**
+ * @class SolucionarChamadoView
+ * @description Controlador da tela de resolução.
+ */
 export class SolucionarChamadoView {
     constructor(chamadoId) {
         this.chamadoId = chamadoId;
@@ -173,6 +199,10 @@ export class SolucionarChamadoView {
         this.usuarioLogado = store.usuarioLogado; 
     }
 
+    /**
+     * @method render
+     * @description Busca dados e decide o modo de exibição (Editável vs Leitura).
+     */
     async render() {
         this.container.innerHTML = `<div id="alert"></div><div class="loading">Carregando detalhes do chamado #${this.chamadoId}...</div>`;
 
@@ -190,7 +220,9 @@ export class SolucionarChamadoView {
 
             let isEditable = false;
 
-            // Só é editável se estiver "Em andamento" E o técnico for EU.
+            // --- REGRA DE SEGURANÇA FRONTEND ---
+            // Só permito edição se o chamado estiver "Em andamento" E se EU for o técnico responsável.
+            // Isso evita que técnicos mexam em chamados uns dos outros acidentalmente.
             if (status === 'Em andamento' && tecResponsavelId === meuId) {
                 isEditable = true;
             }
@@ -206,10 +238,15 @@ export class SolucionarChamadoView {
         }
     }
 
+    /**
+     * @method attachListeners
+     * @description Adiciona interatividade aos botões.
+     * Se estiver em modo ReadOnly, apenas o botão "Voltar" é ativado.
+     */
     attachListeners(id, isReadOnly) {
         document.getElementById('btnVoltar').addEventListener('click', () => this.voltarParaChamados());
         
-        if (isReadOnly) return;
+        if (isReadOnly) return; // Se for leitura, para por aqui.
 
         const btnSalvar = document.getElementById('btnSalvarSolucao');
         const btnFinalizar = document.getElementById('btnFinalizar');
@@ -229,6 +266,10 @@ export class SolucionarChamadoView {
         }
     }
     
+    /**
+     * @method salvarRascunho
+     * @description Salva o texto sem fechar o chamado. Útil para tickets longos.
+     */
     async salvarRascunho(id) {
         const solucao = document.getElementById('solucaoTecnico').value;
         const alertDiv = document.getElementById('alertSolucao');
@@ -246,10 +287,17 @@ export class SolucionarChamadoView {
         }
     }
 
+    /**
+     * @method finalizarChamado
+     * @description Encerra o ciclo de vida do chamado.
+     * Esta ação é crítica, então exigimos que o campo de solução esteja preenchido
+     * e pedimos uma confirmação extra.
+     */
     async finalizarChamado(id) {
         const solucao = document.getElementById('solucaoTecnico').value;
         const alertDiv = document.getElementById('alertSolucao');
         
+        // Validação
         if (!solucao.trim()) {
             alertDiv.innerHTML = '<div class="card error" style="background:#fff5f5; color:#c53030; border-left:4px solid #c53030; padding:10px;">⚠️ A solução é obrigatória para finalizar.</div>';
             return;
@@ -266,7 +314,7 @@ export class SolucionarChamadoView {
             await apiUpdateChamado(id, {
                  status_Cham: 'Fechado',
                  solucaoTec_Cham: solucao,
-                 solucaoFinal_Cham: solucao,
+                 solucaoFinal_Cham: solucao, // Copio a solução técnica para final
                  dataFechamento_Cham: new Date().toISOString()
             });
             alertDiv.innerHTML = '<div class="card success">✅ Chamado finalizado! Redirecionando...</div>';
@@ -281,13 +329,18 @@ export class SolucionarChamadoView {
     }
 }
 
-// Função auxiliar exportada
+/**
+ * @function iniciarSolucao
+ * @description Ponto de entrada (Factory function).
+ * Verifica a rota (hash) e instancia a classe View correta.
+ */
 export function iniciarSolucao(idChamado) { 
     if (!idChamado) {
         location.hash = '#/todos';
         return; 
     }
     
+    // Atualiza a URL para refletir o estado atual (Deep Linking)
     if (!location.hash.includes(`#/solucao/${idChamado}`)) {
         location.hash = `#/solucao/${idChamado}`;
     }
@@ -296,4 +349,5 @@ export function iniciarSolucao(idChamado) {
     view.render();
 }
 
+// Exponho globalmente para uso em onclick=""
 window.iniciarSolucao = iniciarSolucao;
