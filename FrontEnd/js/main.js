@@ -201,7 +201,7 @@ function atualizarDadosUsuarioNaUI(userData) {
         if(el) isHtml ? el.innerHTML = txt : el.textContent = txt; 
     };
 
-    setText('dropdownUserName', userData.nome || 'Usuário');
+    setText('dropdownUserName', `${userData.nome} ${userData.sobrenome}` || 'Usuário');
     setText('dropdownUserId', `ID: ${userData.id_usuario || userData.id || '?'}`);
     setText('dropdownUserEmail', `<strong>E-mail:</strong> ${userData.email}`, true);
     setText('dropdownUserRole', `<strong>Cargo:</strong> ${userData.cargo}`, true);

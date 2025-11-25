@@ -76,16 +76,16 @@ class AbrirChamadoView {
                 
                 <div id="demanda">
                     <label class="label"> Qual o impacto na demanda? <span style="color:red" >* </span> </label>
-                    <label class="demanda"> <input type="radio" name="impacto" value="alto" required> Impede a execução do trabalho </label>
-                    <label class="demanda"> <input type="radio" name="impacto" value="medio"> Causa atraso mas o trabalho continua </label>
-                    <label class="demanda"> <input type="radio" name="impacto" value="baixo"> Impacto mínimo e sem prejuízos operacionais </label>
+                    <label class="demanda"> <input type="radio" name="impacto" value="Alto" required> Impede a execução do trabalho </label>
+                    <label class="demanda"> <input type="radio" name="impacto" value="Medio"> Causa atraso mas o trabalho continua </label>
+                    <label class="demanda"> <input type="radio" name="impacto" value="Baixo"> Impacto mínimo e sem prejuízos operacionais </label>
                 </div>
                 
                 <div id="usuario">
                     <label class="label"> Ocorre com todos os usuários ou apenas com você? <span style="color:red" >* </span> </label>
                     <label class="usuario"> <input type="radio" name="usuarios" value="Todos" required> Todos os usuários </label>
-                    <label class="usuario"> <input type="radio" name="usuarios" value="Grupo"> Atinge apenas um grupo específico </label>
-                    <label class="usuario"> <input type="radio" name="usuarios" value="Eu"> Apenas comigo </label>
+                    <label class="usuario"> <input type="radio" name="usuarios" value="Com um grupo específico"> Atinge apenas um grupo específico </label>
+                    <label class="usuario"> <input type="radio" name="usuarios" value="Somente com o usuário"> Apenas comigo </label>
                 </div>
                 
                 <div id="tempo">
