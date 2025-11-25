@@ -1,9 +1,5 @@
-<<<<<<< HEAD
 BackEnd/node_modules/
 BackEnd/.env
 node_modules
 .env
-=======
-.env
 node_modules
->>>>>>> origin/main
