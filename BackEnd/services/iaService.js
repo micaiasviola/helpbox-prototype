@@ -43,6 +43,9 @@ async function gerarRespostaIA(categoria, descricao, titulo, frequencia, impacto
         2. Sua resposta deve conter no MÁXIMO 1999 caracteres.
         3. PROIBIDO escrever "Cálculo de Prioridade", "Soma total" ou "Pontos".
         4. PROIBIDO explicar por que você escolheu a prioridade.
+        5. Se a solução sugerir troca/substituição de hardware, sempre exiba uma mensagem "**Encaminhe para o Suporte Técnico para assistência presencial.**"
+        6. Se a descrição indicar que o problema é "não técnico" (ex: dúvidas sobre políticas, treinamentos, etc), responda com:
+           "B|**Este tipo de solicitação não é técnica. Por favor, contate o departamento responsável para mais informações.**"
         
         EXEMPLO DO QUE EU QUERO (Faça assim):
         M|**Olá!** Para resolver esse problema de lentidão, sugiro limpar o cache...
